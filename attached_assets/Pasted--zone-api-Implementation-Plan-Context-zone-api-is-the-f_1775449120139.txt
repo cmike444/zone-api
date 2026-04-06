@@ -1,0 +1,247 @@
+# zone-api — Implementation Plan
+
+## Context
+
+`zone-api` is the foundational zone intelligence service. It detects supply/demand zones from candlestick data, monitors live price against those zones, and publishes typed events over WebSocket. It has no broker awareness and no trade logic.
+
+**Data dependency:** zone-api consumes candlestick data and real-time price ticks from `symbol-universe` over HTTP/WS. It does **not** hold its own DXLink client or TastyTrade API connection.
+
+Three transports from a single process:
+- **HTTP REST** — query zones, scan symbols, serve live chart pages
+- **WebSocket** — real-time zone lifecycle + price action event stream
+- **MCP (stdio)** — direct Claude agent access via tool calls
+
+**Repo:** `/Users/chrismikelson/Github/zone-api/`
+**Port:** 3001
+**Depends on:** `symbol-universe` (port 3005) — must be running
+
+---
+
+## Project Structure
+
+```
+zone-api/
+├── src/
+│   ├── index.ts                   # Entry: starts HTTP/WS server + MCP stdio transport
+│   ├── routes/
+│   │   ├── symbols.ts             # POST/DELETE /symbols/:symbol
+│   │   ├── zones.ts               # /zones/:symbol, /zones/:symbol/confluent, /zones/top, /zones/active
+│   │   ├── scan.ts                # GET /scan/:symbol (proxies to symbol-universe /metrics)
+│   │   └── chart.ts               # GET /chart/:symbol (HTML page)
+│   ├── mcp/
+│   │   ├── server.ts              # McpServer setup (stdio transport)
+│   │   └── tools.ts               # MCP tool definitions
+│   ├── services/
+│   │   ├── universeClient.ts      # HTTP + WS client for symbol-universe
+│   │   ├── zoneService.ts         # identifyZones + confluence scoring + DB persist
+│   │   └── priceService.ts        # Subscribe to symbol-universe WS; zone entry/breach detection
+│   ├── db/
+│   │   ├── schema.ts              # better-sqlite3 tables
+│   │   ├── zoneRepo.ts            # zones + confluent_zones CRUD
+│   │   └── eventLogRepo.ts        # zone_touches append-only log
+│   ├── websocket/
+│   │   ├── server.ts              # ws.Server, symbol rooms, global room
+│   │   └── events.ts              # Typed event payloads
+│   └── types.ts
+├── data/zones.db                  # SQLite (gitignored)
+├── .env.example
+├── package.json
+└── tsconfig.json
+```
+
+---
+
+## Dependencies
+
+```json
+{
+  "@cmike444/supply-and-demand-zones": "^1.2.3",
+  "@modelcontextprotocol/sdk": "^1.26.0",
+  "express": "^5.x",
+  "ws": "^8.x",
+  "better-sqlite3": "^11.x",
+  "dotenv": "^16.x"
+}
+```
+
+No `@tastytrade/api` dependency — all market data comes from `symbol-universe`.
+
+---
+
+## SQLite Schema
+
+```sql
+CREATE TABLE zones (
+  id INTEGER PRIMARY KEY, symbol TEXT NOT NULL, timeframe TEXT NOT NULL,
+  direction INTEGER NOT NULL, type INTEGER NOT NULL,
+  proximal REAL NOT NULL, distal REAL NOT NULL, confidence REAL NOT NULL,
+  entry_price REAL, stop_price REAL, target_price REAL,
+  start_ts INTEGER NOT NULL, end_ts INTEGER NOT NULL,
+  detected_at INTEGER NOT NULL, is_fresh INTEGER DEFAULT 1
+);
+CREATE INDEX idx_zones_symbol ON zones(symbol, timeframe, is_fresh);
+
+CREATE TABLE confluent_zones (
+  id INTEGER PRIMARY KEY, symbol TEXT NOT NULL, timeframes TEXT NOT NULL,
+  direction INTEGER NOT NULL, proximal REAL NOT NULL, distal REAL NOT NULL,
+  combined_confidence REAL NOT NULL, entry_price REAL, stop_price REAL,
+  target_price REAL, price_inside INTEGER DEFAULT 0, computed_at INTEGER NOT NULL
+);
+CREATE INDEX idx_confluent_symbol ON confluent_zones(symbol, combined_confidence DESC);
+CREATE INDEX idx_confluent_active ON confluent_zones(price_inside, combined_confidence DESC);
+
+CREATE TABLE zone_touches (
+  id INTEGER PRIMARY KEY, zone_id INTEGER REFERENCES confluent_zones(id),
+  symbol TEXT NOT NULL, price REAL NOT NULL,
+  event TEXT NOT NULL, -- zone_created|zone_updated|zone_expired|zone_entered|zone_exited|zone_breached
+  outcome TEXT,        -- hold|breach (filled in retroactively by ML pipeline)
+  touched_at INTEGER NOT NULL
+);
+-- No trades table — owned by execution-engine
+```
+
+The `outcome` column on `zone_touches` is the ML training label for `ml-services`.
+
+---
+
+## REST API
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/symbols/:symbol` | Start monitoring: fetch candles from symbol-universe, detect zones, open price stream |
+| `DELETE` | `/symbols/:symbol` | Stop monitoring |
+| `GET` | `/symbols` | All monitored symbols with current price + zone count |
+| `GET` | `/scan/:symbol` | Proxy to `symbol-universe GET /metrics/:symbol` — IV rank, IVx, earnings |
+| `GET` | `/zones/:symbol` | Fresh zones, `?timeframe=1d` filter optional |
+| `GET` | `/zones/:symbol/confluent` | Multi-TF confluence zones sorted by confidence |
+| `GET` | `/zones/top` | Top N zones across all symbols `?limit=10&direction=supply` |
+| `GET` | `/zones/active` | All zones where `price_inside=1` right now |
+| `GET` | `/chart/:symbol` | Live ECharts candlestick + zone overlay HTML page |
+
+---
+
+## WebSocket Events (`websocket/events.ts`)
+
+```
+ws://localhost:3001/stream          # global
+ws://localhost:3001/stream/:symbol  # per-symbol
+```
+
+```typescript
+// Zone lifecycle
+{ type: 'zone_created',  symbol, zone: ConfluentZone }
+{ type: 'zone_updated',  symbol, zone: ConfluentZone }
+{ type: 'zone_expired',  symbol, zoneId: number }
+
+// Price action
+{ type: 'zone_entered',  symbol, zone: ConfluentZone, price: number }
+{ type: 'zone_exited',   symbol, zone: ConfluentZone, price: number }
+{ type: 'zone_breached', symbol, zone: ConfluentZone, price: number }
+
+// Chart relay (forwarded from symbol-universe)
+{ type: 'price',  symbol, price: number, timestamp: number }
+{ type: 'candle', symbol, timeframe: string, candle: Candle }
+```
+
+---
+
+## Core Services
+
+### `universeClient.ts`
+HTTP + WebSocket client pointed at `symbol-universe` (configurable via `SYMBOL_UNIVERSE_URL`).
+
+```typescript
+// HTTP
+fetchCandles(symbol, timeframe): Promise<Candle[]>
+  → GET http://symbol-universe:3005/candles/:symbol/:timeframe
+
+fetchMetrics(symbol): Promise<MarketMetrics>
+  → GET http://symbol-universe:3005/metrics/:symbol
+
+// WebSocket
+subscribePrice(symbol, onTick: (price, bid, ask, ts) => void): () => void
+  → ws://symbol-universe:3005/stream/:symbol — listens for { type: 'price' } events
+```
+
+### `zoneService.ts`
+1. Call `universeClient.fetchCandles(symbol, '1d' | '60m' | '15m')` for each timeframe
+2. Run `identifyZones()` + `filterFreshZones()` from `@cmike444/supply-and-demand-zones` on each TF
+3. Confluence: zones from different TFs with overlapping `[distal, proximal]` ranges → merged `ConfluentZone`
+4. `combined_confidence` = avg + 0.1 per extra TF
+5. Emit `zone_created` / `zone_updated` / `zone_expired`
+6. Refresh every 60 min
+
+### `priceService.ts`
+Calls `universeClient.subscribePrice(symbol, handler)`. On each tick:
+- Price enters `[distal, proximal]` → `zone_entered`, `price_inside=1`
+- Price exits without breach → `zone_exited`, `price_inside=0`
+- Price closes through `distal` → `zone_breached`, `is_fresh=0`
+
+No direct DXLink dependency — price stream sourced from symbol-universe.
+
+---
+
+## `/chart/:symbol` — Live Chart
+
+Extends `SupplyAndDemand/scripts/visualizeZones.ts` ECharts template:
+1. Load: fetch `/zones/:symbol` + `/scan/:symbol` from own REST
+2. Connect to WS `/stream/:symbol`
+3. `candle` → append/update chart data
+4. `price` → update price marker line
+5. `zone_entered` → highlight zone overlay
+6. `zone_created` / `zone_updated` → re-render overlays
+7. `zone_breached` → remove overlay
+
+---
+
+## MCP Tools
+
+| Tool | Calls |
+|------|-------|
+| `monitor_symbol(symbol)` | `zoneService.detectZones()` + `priceService.subscribe()` |
+| `get_confluent_zones(symbol)` | `zoneRepo.getConfluentZones(symbol)` |
+| `get_top_zones(limit?, direction?)` | `zoneRepo.getTopZones()` |
+| `get_active_zones()` | `zoneRepo.getActiveZones()` |
+| `scan_symbol(symbol)` | `universeClient.fetchMetrics(symbol)` |
+| `get_chart_url(symbol)` | returns `http://localhost:3001/chart/:symbol` |
+
+---
+
+## Build Order
+
+1. `package.json` + `tsconfig.json` + `.env.example`
+2. `services/universeClient.ts` — HTTP + WS client for symbol-universe
+3. `db/schema.ts` + `db/zoneRepo.ts` + `db/eventLogRepo.ts`
+4. `services/zoneService.ts`
+5. `services/priceService.ts`
+6. `websocket/events.ts` + `websocket/server.ts`
+7. All routes
+8. `routes/chart.ts`
+9. `mcp/server.ts` + `mcp/tools.ts`
+10. `index.ts`
+
+---
+
+## Environment Variables
+
+```
+SYMBOL_UNIVERSE_URL=http://localhost:3005
+PORT=3001
+ZONE_REFRESH_INTERVAL_MINUTES=60
+```
+
+---
+
+## Verification
+
+- symbol-universe must be running before zone-api starts
+- `POST /symbols/AAPL` → fetches candles from symbol-universe, zones match `SupplyAndDemand/example/AAPL_1d_*_zones.html`
+- `GET /zones/AAPL/confluent` → multi-TF scored zones
+- `GET /scan/AAPL` → proxied IV rank, IVx, earnings date from symbol-universe
+- `GET /zones/top?limit=5` → top zones across monitored symbols
+- `GET /zones/active` → zones with `price_inside=1` during market hours
+- `GET /chart/AAPL` → live browser chart with streaming candles + zone overlays
+- WS global stream receives `zone_entered` events as price moves
+- `confluent_zones.price_inside` updates in real-time in SQLite
+- `get_active_zones()` MCP tool works from Claude
+- Zero direct DXLink or TastyTrade API calls from this service
