@@ -107,13 +107,22 @@ function sdkZoneToInternal(
   timeframe: string,
   direction: ZoneDirection,
 ): Zone {
+  const raw = sdkZone as unknown as Record<string, unknown>;
+  const proximal =
+    (raw["proximalLine"] as number | undefined) ??
+    (raw["proximal"] as number | undefined) ??
+    0;
+  const distal =
+    (raw["distalLine"] as number | undefined) ??
+    (raw["distal"] as number | undefined) ??
+    0;
   return {
     symbol,
     timeframe,
     direction,
     type: sdkZone.type,
-    proximal: sdkZone.proximal,
-    distal: sdkZone.distal,
+    proximal,
+    distal,
     confidence: sdkZone.confidence ?? 0.5,
     startTs: sdkZone.startTimestamp ?? Date.now(),
     endTs: sdkZone.endTimestamp ?? Date.now(),

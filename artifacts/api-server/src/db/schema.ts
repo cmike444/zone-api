@@ -79,6 +79,11 @@ export function initDb(): Database.Database {
       outcome TEXT,
       touched_at INTEGER NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS monitored_symbols (
+      symbol TEXT PRIMARY KEY,
+      added_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000)
+    );
   `);
 
   logger.info({ path: DB_PATH }, "SQLite database initialized");

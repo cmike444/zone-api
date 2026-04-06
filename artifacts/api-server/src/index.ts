@@ -3,8 +3,11 @@ import { createServer } from "node:http";
 import app from "./app.js";
 import { logger } from "./lib/logger.js";
 import { initDb } from "./db/schema.js";
+import { getPersistedSymbols } from "./db/symbolRepo.js";
 import { createWsServer } from "./websocket/server.js";
 import { startMcpServer } from "./mcp/server.js";
+import { detectZones, scheduleRefresh } from "./services/zoneService.js";
+import { subscribePriceForSymbol } from "./services/priceService.js";
 
 const rawToken = process.env["INTERNAL_API_TOKEN"];
 if (!rawToken || rawToken.trim() === "") {
@@ -36,6 +39,18 @@ httpServer.listen(port, (err?: Error) => {
     process.exit(1);
   }
   logger.info({ port }, "Server listening");
+
+  const persisted = getPersistedSymbols();
+  if (persisted.length > 0) {
+    logger.info({ symbols: persisted }, "Restoring persisted symbols");
+    for (const sym of persisted) {
+      subscribePriceForSymbol(sym);
+      scheduleRefresh(sym);
+      detectZones(sym).catch((err: unknown) =>
+        logger.warn({ err, symbol: sym }, "Failed to restore zones for symbol"),
+      );
+    }
+  }
 });
 
 startMcpServer().catch((err: unknown) => {

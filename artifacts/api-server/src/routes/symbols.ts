@@ -11,6 +11,7 @@ import {
   deleteZonesBySymbol,
   getZoneCount,
 } from "../db/zoneRepo.js";
+import { persistSymbol, removePersistedSymbol } from "../db/symbolRepo.js";
 import { logger } from "../lib/logger.js";
 
 const router = Router();
@@ -24,6 +25,7 @@ router.post("/:symbol", async (req, res) => {
   const sym = symbol.toUpperCase();
 
   try {
+    persistSymbol(sym);
     await detectZones(sym);
     scheduleRefresh(sym);
     subscribePriceForSymbol(sym);
@@ -46,6 +48,7 @@ router.delete("/:symbol", (req, res) => {
   unsubscribePriceForSymbol(sym);
   deleteConfluentZonesBySymbol(sym);
   deleteZonesBySymbol(sym);
+  removePersistedSymbol(sym);
 
   logger.info({ symbol: sym }, "Stopped monitoring symbol");
   res.json({ symbol: sym, status: "stopped" });

@@ -48,7 +48,7 @@ const BASE_PRICES: Record<string, number> = {
 function getBasePrice(symbol: string): number {
   if (BASE_PRICES[symbol]) return BASE_PRICES[symbol];
   const rng = seedRng(symbolSeed(symbol));
-  return 50 + rng() * 450;
+  return 80 + rng() * 400;
 }
 
 const TF_MS: Record<string, number> = {
@@ -61,47 +61,153 @@ const TF_MS: Record<string, number> = {
 
 const TF_COUNT: Record<string, number> = {
   "1m": 390,
-  "5m": 200,
-  "15m": 150,
-  "60m": 120,
+  "5m": 280,
+  "15m": 200,
+  "60m": 160,
   "1d": 252,
 };
 
-function generateCandles(symbol: string, timeframe: string) {
+const TF_VOL: Record<string, number> = {
+  "1m": 0.0012,
+  "5m": 0.0025,
+  "15m": 0.004,
+  "60m": 0.007,
+  "1d": 0.015,
+};
+
+interface Candle {
+  timestamp: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
+
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+function generateCandles(symbol: string, timeframe: string): Candle[] {
   const tfMs = TF_MS[timeframe] ?? 60_000;
   const count = TF_COUNT[timeframe] ?? 200;
+  const vol = TF_VOL[timeframe] ?? 0.005;
   const rng = seedRng(symbolSeed(symbol + timeframe));
 
-  let price = getBasePrice(symbol);
-  const volatility = price * 0.0035;
+  const basePrice = getBasePrice(symbol);
+  const candles: Candle[] = [];
 
+  let price = basePrice * (0.88 + rng() * 0.04);
   const now = Date.now();
-  const candles = [];
+  const startTs = now - (count - 1) * tfMs;
 
-  for (let i = count - 1; i >= 0; i--) {
-    const ts = now - i * tfMs;
-    const open = price;
-    const change = (rng() - 0.5) * volatility * 2;
-    const close = Math.max(0.01, open + change);
-    const highExtra = rng() * volatility;
-    const lowExtra = rng() * volatility;
-    const high = Math.max(open, close) + highExtra;
-    const low = Math.min(open, close) - lowExtra;
-    const volume = Math.floor(50_000 + rng() * 950_000);
+  let candleIdx = 0;
 
-    candles.push({
-      timestamp: ts,
-      open: +open.toFixed(2),
-      high: +high.toFixed(2),
-      low: +low.toFixed(2),
-      close: +close.toFixed(2),
-      volume,
-    });
-
-    price = close;
+  function makeDecisiveBullish(open: number, size: number): Candle {
+    const body = size * (0.65 + rng() * 0.25);
+    const close = open + body;
+    const topWick = body * (0.03 + rng() * 0.1);
+    const botWick = body * (0.03 + rng() * 0.08);
+    const high = close + topWick;
+    const low = open - botWick;
+    const volume = Math.floor(700_000 + rng() * 1_300_000);
+    const ts = startTs + candleIdx++ * tfMs;
+    return { timestamp: ts, open: round2(open), high: round2(high), low: round2(low), close: round2(close), volume };
   }
 
-  return candles;
+  function makeDecisiveBearish(open: number, size: number): Candle {
+    const body = size * (0.65 + rng() * 0.25);
+    const close = open - body;
+    const topWick = body * (0.03 + rng() * 0.08);
+    const botWick = body * (0.03 + rng() * 0.1);
+    const high = open + topWick;
+    const low = close - botWick;
+    const volume = Math.floor(700_000 + rng() * 1_300_000);
+    const ts = startTs + candleIdx++ * tfMs;
+    return { timestamp: ts, open: round2(open), high: round2(high), low: round2(low), close: round2(close), volume };
+  }
+
+  function makeExplosive(open: number, size: number, bullish: boolean): Candle {
+    const body = size * (0.75 + rng() * 0.2);
+    const close = bullish ? open + body : open - body;
+    const wick = body * (0.02 + rng() * 0.05);
+    const high = bullish ? close + wick : open + wick;
+    const low = bullish ? open - wick : close - wick;
+    const volume = Math.floor(1_500_000 + rng() * 2_500_000);
+    const ts = startTs + candleIdx++ * tfMs;
+    return { timestamp: ts, open: round2(open), high: round2(high), low: round2(low), close: round2(close), volume };
+  }
+
+  function makeBase(open: number, size: number): Candle {
+    const body = size * (0.1 + rng() * 0.3);
+    const bullish = rng() > 0.5;
+    const close = bullish ? open + body : open - body;
+    const wick = size * (0.3 + rng() * 0.4);
+    const high = Math.max(open, close) + wick * (0.4 + rng() * 0.3);
+    const low = Math.min(open, close) - wick * (0.4 + rng() * 0.3);
+    const volume = Math.floor(200_000 + rng() * 400_000);
+    const ts = startTs + candleIdx++ * tfMs;
+    return { timestamp: ts, open: round2(open), high: round2(high), low: round2(low), close: round2(close), volume };
+  }
+
+  while (candles.length < count) {
+    const segType = rng();
+    const segVol = price * vol;
+    const legSize = segVol * (2.5 + rng() * 2.5);
+
+    if (segType < 0.35) {
+      const numRally = 2 + Math.floor(rng() * 3);
+      for (let i = 0; i < numRally && candles.length < count; i++) {
+        const c = makeDecisiveBullish(price, legSize);
+        candles.push(c);
+        price = c.close;
+      }
+      const numBase = 1 + Math.floor(rng() * 3);
+      for (let i = 0; i < numBase && candles.length < count; i++) {
+        const c = makeBase(price, segVol * 0.6);
+        candles.push(c);
+        price = c.close;
+      }
+      const expDown = makeExplosive(price, legSize * (1.2 + rng() * 0.8), false);
+      candles.push(expDown);
+      price = expDown.close;
+
+    } else if (segType < 0.70) {
+      const numDrop = 2 + Math.floor(rng() * 3);
+      for (let i = 0; i < numDrop && candles.length < count; i++) {
+        const c = makeDecisiveBearish(price, legSize);
+        candles.push(c);
+        price = c.close;
+      }
+      const numBase = 1 + Math.floor(rng() * 3);
+      for (let i = 0; i < numBase && candles.length < count; i++) {
+        const c = makeBase(price, segVol * 0.6);
+        candles.push(c);
+        price = c.close;
+      }
+      const expUp = makeExplosive(price, legSize * (1.2 + rng() * 0.8), true);
+      candles.push(expUp);
+      price = expUp.close;
+
+    } else {
+      const numMixed = 2 + Math.floor(rng() * 4);
+      for (let i = 0; i < numMixed && candles.length < count; i++) {
+        const c = makeBase(price, segVol * (0.8 + rng() * 0.8));
+        candles.push(c);
+        price = c.close;
+      }
+    }
+
+    price = Math.max(basePrice * 0.6, Math.min(basePrice * 1.4, price));
+  }
+
+  const trimmed = candles.slice(0, count);
+  const nowTs = Date.now();
+  trimmed.forEach((c, i) => {
+    c.timestamp = nowTs - (count - 1 - i) * tfMs;
+  });
+
+  return trimmed;
 }
 
 const app = express();
@@ -125,11 +231,11 @@ app.get("/metrics/:symbol", (req, res) => {
   const price = getBasePrice(symbol);
   res.json({
     symbol,
-    price: +price.toFixed(2),
+    price: round2(price),
     volume: Math.floor(1_000_000 + rng() * 50_000_000),
     avgVolume: Math.floor(5_000_000 + rng() * 30_000_000),
-    high52w: +(price * (1 + rng() * 0.4)).toFixed(2),
-    low52w: +(price * (1 - rng() * 0.3)).toFixed(2),
+    high52w: round2(price * (1 + rng() * 0.4)),
+    low52w: round2(price * (1 - rng() * 0.3)),
   });
 });
 
@@ -138,7 +244,6 @@ app.get("/healthz", (_req, res) => {
 });
 
 const server = http.createServer(app);
-
 const wss = new WebSocketServer({ noServer: true });
 
 server.on("upgrade", (req, socket, head) => {
@@ -167,21 +272,22 @@ server.on("upgrade", (req, socket, head) => {
 wss.on("connection", (ws: WebSocket, _req: http.IncomingMessage, symbol: string) => {
   let price = getBasePrice(symbol);
   const spread = price * 0.0002;
+  const vol = price * TF_VOL["1m"]!;
 
   const interval = setInterval(() => {
     if (ws.readyState !== WebSocket.OPEN) {
       clearInterval(interval);
       return;
     }
-    const delta = (Math.random() - 0.5) * price * 0.001;
-    price = Math.max(0.01, price + delta);
-    const bid = +(price - spread).toFixed(2);
-    const ask = +(price + spread).toFixed(2);
+    const delta = (Math.random() - 0.5) * vol * 0.8;
+    price = Math.max(price * 0.9, Math.min(price * 1.1, price + delta));
+    const bid = round2(price - spread);
+    const ask = round2(price + spread);
     ws.send(
       JSON.stringify({
         type: "price",
         symbol,
-        price: +price.toFixed(2),
+        price: round2(price),
         bid,
         ask,
         timestamp: Date.now(),
