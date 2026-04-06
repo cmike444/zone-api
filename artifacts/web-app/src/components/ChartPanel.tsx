@@ -72,15 +72,14 @@ function buildZoneMarkArea(zone: ConfluentZone, candles: Candle[], tf: TF) {
   };
 }
 
-function buildYBounds(candles: Candle[], zones: ConfluentZone[]): { yMin: number; yMax: number } {
+function buildYBounds(candles: Candle[]): { yMin: number; yMax: number } {
   const prices: number[] = [
     ...candles.map((c) => c.high),
     ...candles.map((c) => c.low),
-    ...zones.flatMap((z) => [z.proximalLine, z.distalLine]),
   ];
   if (prices.length === 0) return { yMin: 0, yMax: 1 };
   const raw = { min: Math.min(...prices), max: Math.max(...prices) };
-  const pad = (raw.max - raw.min) * 0.025;
+  const pad = (raw.max - raw.min) * 0.05;
   return { yMin: raw.min - pad, yMax: raw.max + pad };
 }
 
@@ -93,7 +92,7 @@ function buildOptions(
   const xs = candles.map((c) => fmtDate(c.timestamp, tf));
   const ys = candles.map((c) => [c.open, c.close, c.low, c.high]);
   const zoneSeries = zones.map((z) => buildZoneMarkArea(z, candles, tf));
-  const { yMin, yMax } = buildYBounds(candles, zones);
+  const { yMin, yMax } = buildYBounds(candles);
 
   return {
     backgroundColor: "#0d1117",
