@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useStore } from "@/lib/store";
 import { wsClient } from "@/lib/wsClient";
 import { api } from "@/lib/api";
@@ -10,9 +10,22 @@ import { useToast } from "@/hooks/use-toast";
 import { ZoneDirection } from "@/lib/types";
 
 export default function Dashboard() {
-  const { selectedSymbol, updateQuote, markZoneActive, markZoneInactive, setActiveZoneIds } = useStore();
+  const { selectedSymbol, markZoneActive, markZoneInactive, setActiveZoneIds } = useStore();
   const { toast } = useToast();
-  const [activeZoneSymbols, setActiveZoneSymbols] = useState<Set<string>>(new Set());
+
+  const [activeZonesBySymbol, setActiveZonesBySymbol] = useState<Map<string, Set<number>>>(
+    new Map(),
+  );
+
+  const activeZoneSymbols = useMemo(
+    () =>
+      new Set(
+        [...activeZonesBySymbol.entries()]
+          .filter(([, ids]) => ids.size > 0)
+          .map(([sym]) => sym),
+      ),
+    [activeZonesBySymbol],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -22,21 +35,31 @@ export default function Dashboard() {
         active.map((z) => z.id).filter((id): id is number => id != null),
       );
       setActiveZoneIds(ids);
-      const syms = new Set<string>(active.filter((z) => z.priceInside).map((z) => z.symbol));
-      setActiveZoneSymbols(syms);
+
+      const map = new Map<string, Set<number>>();
+      for (const zone of active) {
+        if (zone.priceInside) {
+          if (!map.has(zone.symbol)) map.set(zone.symbol, new Set());
+          if (zone.id != null) map.get(zone.symbol)!.add(zone.id);
+        }
+      }
+      setActiveZonesBySymbol(map);
     }).catch(() => {});
     return () => { cancelled = true; };
   }, [setActiveZoneIds]);
 
   useEffect(() => {
     const unsub = wsClient.subscribe((event: ZoneEvent) => {
-      if (event.type === "price") {
-        updateQuote(event.symbol, event.price, event.bid, event.ask);
-        return;
-      }
       if (event.type === "zone_entered") {
         if (event.zone.id != null) markZoneActive(event.zone.id);
-        setActiveZoneSymbols((prev) => new Set([...prev, event.symbol]));
+        setActiveZonesBySymbol((prev) => {
+          const next = new Map(prev);
+          if (!next.has(event.symbol)) next.set(event.symbol, new Set());
+          const ids = new Set(next.get(event.symbol)!);
+          if (event.zone.id != null) ids.add(event.zone.id);
+          next.set(event.symbol, ids);
+          return next;
+        });
         toast({
           title: `Zone entered — ${event.symbol}`,
           description: `Price $${event.price.toFixed(2)} entered ${
@@ -47,9 +70,13 @@ export default function Dashboard() {
       }
       if (event.type === "zone_exited") {
         if (event.zone.id != null) markZoneInactive(event.zone.id);
-        setActiveZoneSymbols((prev) => {
-          const next = new Set(prev);
-          next.delete(event.symbol);
+        setActiveZonesBySymbol((prev) => {
+          const next = new Map(prev);
+          if (next.has(event.symbol) && event.zone.id != null) {
+            const ids = new Set(next.get(event.symbol)!);
+            ids.delete(event.zone.id);
+            next.set(event.symbol, ids);
+          }
           return next;
         });
         toast({
@@ -71,7 +98,7 @@ export default function Dashboard() {
       }
     });
     return unsub;
-  }, [updateQuote, markZoneActive, markZoneInactive, setActiveZoneIds, toast]);
+  }, [markZoneActive, markZoneInactive, toast]);
 
   return (
     <div className="flex flex-1 min-h-0 overflow-hidden">

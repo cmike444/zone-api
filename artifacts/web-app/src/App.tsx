@@ -5,13 +5,14 @@ import { AppShell } from "@/components/AppShell";
 import { useStore } from "@/lib/store";
 import { api, getWsUrl } from "@/lib/api";
 import { wsClient } from "@/lib/wsClient";
+import type { ZoneEvent } from "@/lib/types";
 import Dashboard from "@/pages/Dashboard";
 import Scanner from "@/pages/Scanner";
 
 const queryClient = new QueryClient();
 
 function AppContent() {
-  const { view, setSymbols, setApiConnected } = useStore();
+  const { view, setSymbols, setApiConnected, updateQuote } = useStore();
 
   useEffect(() => {
     let interval: ReturnType<typeof setInterval>;
@@ -44,6 +45,15 @@ function AppContent() {
     wsClient.connect(getWsUrl);
     return () => wsClient.disconnect();
   }, []);
+
+  useEffect(() => {
+    const unsub = wsClient.subscribe((event: ZoneEvent) => {
+      if (event.type === "price") {
+        updateQuote(event.symbol, event.price, event.bid, event.ask);
+      }
+    });
+    return unsub;
+  }, [updateQuote]);
 
   return (
     <AppShell>
