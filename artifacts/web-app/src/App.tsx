@@ -6,7 +6,6 @@ import { useStore } from "@/lib/store";
 import { api, getWsUrl } from "@/lib/api";
 import { wsClient } from "@/lib/wsClient";
 import type { ZoneEvent } from "@/lib/types";
-import { ZoneDirection } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import Dashboard from "@/pages/Dashboard";
 import Scanner from "@/pages/Scanner";
@@ -59,8 +58,8 @@ function AppContent() {
         toast({
           title: `Zone entered — ${event.symbol}`,
           description: `Price $${event.price.toFixed(2)} entered ${
-            event.zone.direction === ZoneDirection.Supply ? "supply" : "demand"
-          } zone $${event.zone.proximal.toFixed(2)} – $${event.zone.distal.toFixed(2)}`,
+            event.zone.direction === "supply" ? "supply" : "demand"
+          } zone $${event.zone.proximalLine.toFixed(2)} – $${event.zone.distalLine.toFixed(2)}`,
         });
         return;
       }
@@ -68,8 +67,8 @@ function AppContent() {
         toast({
           title: `Zone exited — ${event.symbol}`,
           description: `Price $${event.price.toFixed(2)} left ${
-            event.zone.direction === ZoneDirection.Supply ? "supply" : "demand"
-          } zone $${event.zone.proximal.toFixed(2)} – $${event.zone.distal.toFixed(2)}`,
+            event.zone.direction === "supply" ? "supply" : "demand"
+          } zone $${event.zone.proximalLine.toFixed(2)} – $${event.zone.distalLine.toFixed(2)}`,
         });
         return;
       }
@@ -77,8 +76,8 @@ function AppContent() {
         toast({
           title: `Zone breached — ${event.symbol}`,
           description: `Price $${event.price.toFixed(2)} broke through ${
-            event.zone.direction === ZoneDirection.Supply ? "supply" : "demand"
-          } zone at $${event.zone.proximal.toFixed(2)}`,
+            event.zone.direction === "supply" ? "supply" : "demand"
+          } zone at $${event.zone.proximalLine.toFixed(2)}`,
           variant: "destructive",
         });
       }

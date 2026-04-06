@@ -3,10 +3,9 @@ import { ArrowUpDown, ArrowUp, ArrowDown, RefreshCw } from "lucide-react";
 import { api } from "@/lib/api";
 import { useStore } from "@/lib/store";
 import type { ConfluentZone } from "@/lib/types";
-import { ZoneDirection } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-type SortKey = "symbol" | "combinedConfidence" | "proximal" | "distal" | "computedAt";
+type SortKey = "symbol" | "combinedConfidence" | "proximalLine" | "distalLine" | "computedAt";
 type Dir = "asc" | "desc";
 
 const REFRESH_MS = 30_000;
@@ -26,7 +25,7 @@ function SortIcon({ col, active, dir }: { col: string; active: string; dir: Dir 
 }
 
 function zoneStatus(zone: ConfluentZone, activeIds: Set<number>): "active" | "stale" | "fresh" {
-  if (zone.priceInside || (zone.id != null && activeIds.has(zone.id))) return "active";
+  if (zone.priceInside || activeIds.has(zone.id)) return "active";
   const age = Date.now() - zone.computedAt;
   if (age > STALE_MS) return "stale";
   return "fresh";
@@ -50,16 +49,13 @@ export function ZoneScanner() {
         api.getTopZones(200),
         api.getActiveZones(),
       ]);
-      const activeIds = new Set<number>(
-        active.map((z) => z.id).filter((id): id is number => id != null),
-      );
+      const activeIds = new Set<number>(active.map((z) => z.id));
       useStore.getState().setActiveZoneIds(activeIds);
 
-      const merged = new Map<number | string, ConfluentZone>();
-      for (const z of top) merged.set(z.id ?? `${z.proximal}-${z.distal}`, z);
+      const merged = new Map<number, ConfluentZone>();
+      for (const z of top) merged.set(z.id, z);
       for (const z of active) {
-        const k = z.id ?? `${z.proximal}-${z.distal}`;
-        merged.set(k, { ...merged.get(k), ...z, priceInside: true });
+        merged.set(z.id, { ...merged.get(z.id), ...z, priceInside: true });
       }
       setZones(Array.from(merged.values()));
       setLastRefresh(new Date());
@@ -89,11 +85,7 @@ export function ZoneScanner() {
   const filtered = useMemo(() => {
     let list = zones;
     if (filterDir !== "all") {
-      list = list.filter((z) =>
-        filterDir === "supply"
-          ? z.direction === ZoneDirection.Supply
-          : z.direction === ZoneDirection.Demand,
-      );
+      list = list.filter((z) => z.direction === filterDir);
     }
     if (filterStatus !== "all") {
       list = list.filter((z) => zoneStatus(z, activeZoneIds) === filterStatus);
@@ -222,8 +214,8 @@ export function ZoneScanner() {
               <th className="text-left text-xs text-muted-foreground font-medium px-3 py-2 whitespace-nowrap">
                 Timeframes
               </th>
-              <Th label="Proximal" col="proximal" />
-              <Th label="Distal" col="distal" />
+              <Th label="Proximal" col="proximalLine" />
+              <Th label="Distal" col="distalLine" />
               <Th label="Confidence" col="combinedConfidence" className="text-right" />
               <th className="text-left text-xs text-muted-foreground font-medium px-3 py-2 whitespace-nowrap">
                 Status
@@ -242,7 +234,7 @@ export function ZoneScanner() {
               </tr>
             )}
             {filtered.map((z, i) => {
-              const isSupply = z.direction === ZoneDirection.Supply;
+              const isSupply = z.direction === "supply";
               const status = zoneStatus(z, activeZoneIds);
 
               return (
@@ -273,10 +265,10 @@ export function ZoneScanner() {
                     {Array.isArray(z.timeframes) ? z.timeframes.join(", ") : "—"}
                   </td>
                   <td className="px-3 py-2.5 font-mono text-xs text-foreground">
-                    ${fmt(z.proximal)}
+                    ${fmt(z.proximalLine)}
                   </td>
                   <td className="px-3 py-2.5 font-mono text-xs text-foreground">
-                    ${fmt(z.distal)}
+                    ${fmt(z.distalLine)}
                   </td>
                   <td className="px-3 py-2.5 text-right">
                     <span className="font-mono text-xs text-primary">

@@ -73,8 +73,8 @@ router.get("/:symbol", (req, res) => {
         markArea: {
           silent: true,
           data: [[
-            { yAxis: zone.distal, itemStyle: { color: isSupply ? "rgba(248,81,73,0.15)" : "rgba(63,185,80,0.15)", borderColor: isSupply ? "#f85149" : "#3fb950", borderWidth: 1 } },
-            { yAxis: zone.proximal },
+            { yAxis: zone.distalLine, itemStyle: { color: isSupply ? "rgba(248,81,73,0.15)" : "rgba(63,185,80,0.15)", borderColor: isSupply ? "#f85149" : "#3fb950", borderWidth: 1 } },
+            { yAxis: zone.proximalLine },
           ]],
         },
         data: [],
@@ -92,8 +92,8 @@ router.get("/:symbol", (req, res) => {
         const zones = await zonesRes.json();
         for (const zone of zones) {
           zoneMap.set(zone.id, zone);
-          const ol = buildZoneOverlay(zone, zone.direction === 0);
-          if (zone.direction === 0) supplyOverlays.push(ol);
+          const ol = buildZoneOverlay(zone, zone.direction === 'supply');
+          if (zone.direction === 'supply') supplyOverlays.push(ol);
           else demandOverlays.push(ol);
         }
         if (candlesRes?.ok) {
@@ -137,8 +137,8 @@ router.get("/:symbol", (req, res) => {
           supplyOverlays.length = 0;
           demandOverlays.length = 0;
           for (const [, zone] of zoneMap) {
-            const ol = buildZoneOverlay(zone, zone.direction === 0);
-            if (zone.direction === 0) supplyOverlays.push(ol);
+            const ol = buildZoneOverlay(zone, zone.direction === 'supply');
+            if (zone.direction === 'supply') supplyOverlays.push(ol);
             else demandOverlays.push(ol);
           }
           renderChart();
@@ -147,8 +147,8 @@ router.get("/:symbol", (req, res) => {
           supplyOverlays.length = 0;
           demandOverlays.length = 0;
           for (const [, zone] of zoneMap) {
-            const ol = buildZoneOverlay(zone, zone.direction === 0);
-            if (zone.direction === 0) supplyOverlays.push(ol);
+            const ol = buildZoneOverlay(zone, zone.direction === 'supply');
+            if (zone.direction === 'supply') supplyOverlays.push(ol);
             else demandOverlays.push(ol);
           }
           renderChart();

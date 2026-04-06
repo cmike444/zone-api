@@ -4,7 +4,6 @@ import type { ECharts } from "echarts";
 import { api } from "@/lib/api";
 import { wsClient } from "@/lib/wsClient";
 import type { Candle, ConfluentZone, ZoneEvent } from "@/lib/types";
-import { ZoneDirection } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const TIMEFRAMES = ["1d", "60m", "15m", "5m", "1m"] as const;
@@ -27,7 +26,7 @@ function fmtDate(ts: number, tf: TF): string {
 }
 
 function buildZoneMarkArea(zone: ConfluentZone) {
-  const isSupply = zone.direction === ZoneDirection.Supply;
+  const isSupply = zone.direction === "supply";
   return {
     name: `${isSupply ? "Supply" : "Demand"} ${zone.id}`,
     type: "line" as const,
@@ -36,14 +35,14 @@ function buildZoneMarkArea(zone: ConfluentZone) {
       data: [
         [
           {
-            yAxis: zone.distal,
+            yAxis: zone.distalLine,
             itemStyle: {
               color: isSupply ? "rgba(248,81,73,0.12)" : "rgba(63,185,80,0.12)",
               borderColor: isSupply ? "#f85149" : "#3fb950",
               borderWidth: 1,
             },
           },
-          { yAxis: zone.proximal },
+          { yAxis: zone.proximalLine },
         ],
       ],
     },
@@ -125,7 +124,7 @@ export function ChartPanel({ symbol }: Props) {
   const chartRef = useRef<HTMLDivElement>(null);
   const echartsRef = useRef<ECharts | null>(null);
   const candlesRef = useRef<Candle[]>([]);
-  const zonesRef = useRef<Map<number | string, ConfluentZone>>(new Map());
+  const zonesRef = useRef<Map<number, ConfluentZone>>(new Map());
   const [timeframe, setTimeframe] = useState<TF>("60m");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -172,9 +171,7 @@ export function ChartPanel({ symbol }: Props) {
         ]);
         if (cancelled) return;
         candlesRef.current = candles;
-        zonesRef.current = new Map(
-          zones.map((z) => [z.id ?? `${z.proximal}-${z.distal}`, z]),
-        );
+        zonesRef.current = new Map(zones.map((z) => [z.id, z]));
         renderChart();
       } catch (e) {
         if (!cancelled)
@@ -206,15 +203,13 @@ export function ChartPanel({ symbol }: Props) {
         (event.type === "zone_created" || event.type === "zone_updated") &&
         event.symbol === symbol
       ) {
-        const key = event.zone.id ?? `${event.zone.proximal}-${event.zone.distal}`;
-        zonesRef.current.set(key, event.zone);
+        zonesRef.current.set(event.zone.id, event.zone);
         renderChart();
       } else if (event.type === "zone_expired" && event.symbol === symbol) {
-        zonesRef.current.delete(event.zoneId);
+        zonesRef.current.delete(event.zone.id);
         renderChart();
       } else if (event.type === "zone_breached" && event.symbol === symbol) {
-        const key = event.zone.id ?? `${event.zone.proximal}-${event.zone.distal}`;
-        zonesRef.current.delete(key);
+        zonesRef.current.delete(event.zone.id);
         renderChart();
       }
     });

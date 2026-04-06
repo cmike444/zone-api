@@ -1,11 +1,7 @@
 export type {
-  ZoneCreatedEvent,
-  ZoneUpdatedEvent,
-  ZoneExpiredEvent,
-  ZoneEnteredEvent,
-  ZoneExitedEvent,
-  ZoneBreachedEvent,
   PriceEvent,
   CandleEvent,
-  ZoneEvent,
+  StreamEvent,
 } from "../types.js";
+
+export type { ZoneEvent } from "hf-types";

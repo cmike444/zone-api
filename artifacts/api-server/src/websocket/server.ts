@@ -1,7 +1,7 @@
 import { WebSocketServer, WebSocket } from "ws";
 import type { Server } from "node:http";
 import { requireWsToken } from "../middlewares/internalAuth.js";
-import type { ZoneEvent } from "../types.js";
+import type { StreamEvent } from "../types.js";
 import { logger } from "../lib/logger.js";
 
 let wss: WebSocketServer | null = null;
@@ -75,7 +75,7 @@ export function createWsServer(httpServer: Server): WebSocketServer {
   return wss;
 }
 
-export function broadcastEvent(symbol: string, event: ZoneEvent): void {
+export function broadcastEvent(symbol: string, event: StreamEvent): void {
   const payload = JSON.stringify(event);
 
   const room = symbolRooms.get(symbol);

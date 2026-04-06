@@ -5,7 +5,7 @@ import {
   getTopZones,
   getActiveZones,
 } from "../db/zoneRepo.js";
-import { ZoneDirection } from "../types.js";
+import type { ZoneDirection } from "../types.js";
 
 const router = Router();
 
@@ -14,8 +14,8 @@ router.get("/top", (req, res) => {
   const directionParam = req.query["direction"];
   let direction: ZoneDirection | undefined;
 
-  if (directionParam === "supply") direction = ZoneDirection.Supply;
-  else if (directionParam === "demand") direction = ZoneDirection.Demand;
+  if (directionParam === "supply") direction = "supply";
+  else if (directionParam === "demand") direction = "demand";
 
   const zones = getTopZones(isNaN(limit) ? 10 : limit, direction);
   res.json(zones);

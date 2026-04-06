@@ -1,7 +1,6 @@
 import {
   identifyZones,
   filterFreshZones,
-  type SdkZone,
 } from "@cmike444/supply-and-demand-zones";
 import { fetchCandles } from "./universeClient.js";
 import {
@@ -13,9 +12,17 @@ import {
 } from "../db/zoneRepo.js";
 import { logZoneTouch } from "../db/eventLogRepo.js";
 import { broadcastEvent } from "../websocket/server.js";
-import type { Candle, ConfluentZone, Zone } from "../types.js";
-import { ZoneDirection } from "../types.js";
+import type {
+  Candle,
+  ConfluentZone,
+  Zone,
+  ZoneDirection,
+  ZonePattern,
+} from "../types.js";
 import { logger } from "../lib/logger.js";
+
+const ZONE_DIRECTION = { SUPPLY: 0, DEMAND: 1 } as const;
+const ZONE_TYPE = { DROP_BASE_DROP: 0, RALLY_BASE_RALLY: 1, DROP_BASE_RALLY: 2, RALLY_BASE_DROP: 3 } as const;
 
 const TIMEFRAMES = ["1d", "60m", "15m"] as const;
 type Timeframe = (typeof TIMEFRAMES)[number];
@@ -28,6 +35,25 @@ function getRefreshIntervalMs(): number {
     10,
   );
   return (isNaN(minutes) ? 60 : minutes) * 60 * 1000;
+}
+
+function sdkDirectionToString(dir: number): ZoneDirection {
+  return dir === ZONE_DIRECTION.SUPPLY ? "supply" : "demand";
+}
+
+function sdkTypeToPattern(type: number): ZonePattern {
+  switch (type) {
+    case ZONE_TYPE.RALLY_BASE_DROP:
+      return "RBD";
+    case ZONE_TYPE.DROP_BASE_DROP:
+      return "DBD";
+    case ZONE_TYPE.DROP_BASE_RALLY:
+      return "DBR";
+    case ZONE_TYPE.RALLY_BASE_RALLY:
+      return "RBR";
+    default:
+      return "RBD";
+  }
 }
 
 function zonesOverlap(
@@ -66,10 +92,10 @@ function computeConfluentZones(
 
       if (
         zonesOverlap(
-          seed.proximal,
-          seed.distal,
-          candidate.proximal,
-          candidate.distal,
+          seed.proximalLine,
+          seed.distalLine,
+          candidate.proximalLine,
+          candidate.distalLine,
         )
       ) {
         grouped.push(candidate);
@@ -83,15 +109,16 @@ function computeConfluentZones(
     const tfBonus = Math.max(0, timeframes.length - 1) * 0.1;
     const combinedConfidence = Math.min(1, avgConfidence + tfBonus);
 
-    const proximal = Math.max(...grouped.map((z) => z.proximal));
-    const distal = Math.min(...grouped.map((z) => z.distal));
+    const proximalLine = Math.max(...grouped.map((z) => z.proximalLine));
+    const distalLine = Math.min(...grouped.map((z) => z.distalLine));
 
     confluent.push({
+      id: 0,
       symbol,
-      timeframes,
+      timeframes: timeframes as Timeframe[],
       direction: seed.direction,
-      proximal,
-      distal,
+      proximalLine,
+      distalLine,
       combinedConfidence,
       priceInside: false,
       computedAt: Date.now(),
@@ -102,30 +129,30 @@ function computeConfluentZones(
 }
 
 function sdkZoneToInternal(
-  sdkZone: SdkZone,
+  sdkZone: Record<string, unknown>,
   symbol: string,
-  timeframe: string,
-  direction: ZoneDirection,
+  timeframe: Timeframe,
 ): Zone {
-  const raw = sdkZone as unknown as Record<string, unknown>;
-  const proximal =
-    (raw["proximalLine"] as number | undefined) ??
-    (raw["proximal"] as number | undefined) ??
-    0;
-  const distal =
-    (raw["distalLine"] as number | undefined) ??
-    (raw["distal"] as number | undefined) ??
-    0;
+  const direction = sdkDirectionToString(sdkZone["direction"] as number);
+  const pattern = sdkTypeToPattern(sdkZone["type"] as number);
+  const proximalLine = (sdkZone["proximalLine"] as number) ?? 0;
+  const distalLine = (sdkZone["distalLine"] as number) ?? 0;
   return {
+    id: 0,
     symbol,
     timeframe,
     direction,
-    type: sdkZone.type,
-    proximal,
-    distal,
-    confidence: sdkZone.confidence ?? 0.5,
-    startTs: sdkZone.startTimestamp ?? Date.now(),
-    endTs: sdkZone.endTimestamp ?? Date.now(),
+    pattern,
+    proximalLine,
+    distalLine,
+    confidence: (sdkZone["confidence"] as number) ?? 0.5,
+    rrScore: sdkZone["rrScore"] as number | undefined,
+    entryPrice: sdkZone["entryPrice"] as number | undefined,
+    stopPrice: sdkZone["stopPrice"] as number | undefined,
+    targetPrice:
+      (sdkZone["targetPrice"] as number | null | undefined) ?? undefined,
+    startTimestamp: (sdkZone["startTimestamp"] as number) ?? Date.now(),
+    endTimestamp: (sdkZone["endTimestamp"] as number) ?? Date.now(),
     detectedAt: Date.now(),
     isFresh: true,
   };
@@ -156,10 +183,10 @@ export async function detectZones(symbol: string): Promise<void> {
 
       const tfZones: Zone[] = [
         ...(fresh.supplyZones ?? []).map((z) =>
-          sdkZoneToInternal(z, symbol, tf, ZoneDirection.Supply),
+          sdkZoneToInternal(z as unknown as Record<string, unknown>, symbol, tf),
         ),
         ...(fresh.demandZones ?? []).map((z) =>
-          sdkZoneToInternal(z, symbol, tf, ZoneDirection.Demand),
+          sdkZoneToInternal(z as unknown as Record<string, unknown>, symbol, tf),
         ),
       ];
 
@@ -194,32 +221,33 @@ export async function detectZones(symbol: string): Promise<void> {
 
     const existed = prevConfluentZones.find(
       (p) =>
-        Math.abs(p.proximal - cz.proximal) < 0.01 &&
-        Math.abs(p.distal - cz.distal) < 0.01 &&
+        Math.abs(p.proximalLine - cz.proximalLine) < 0.01 &&
+        Math.abs(p.distalLine - cz.distalLine) < 0.01 &&
         p.direction === cz.direction,
     );
 
     if (existed) {
-      broadcastEvent(symbol, { type: "zone_updated", symbol, zone: cz });
+      broadcastEvent(symbol, { type: "zone_updated", symbol, zone: cz, timestamp: Date.now() });
       logZoneTouch({ zoneId: id, symbol, price: 0, event: "zone_updated" });
     } else {
-      broadcastEvent(symbol, { type: "zone_created", symbol, zone: cz });
+      broadcastEvent(symbol, { type: "zone_created", symbol, zone: cz, timestamp: Date.now() });
       logZoneTouch({ zoneId: id, symbol, price: 0, event: "zone_created" });
     }
   }
 
-  const newProxDistalSet = new Set(
+  const newKeySet = new Set(
     newConfluentZones.map(
-      (z) => `${z.direction}:${z.proximal}:${z.distal}`,
+      (z) => `${z.direction}:${z.proximalLine}:${z.distalLine}`,
     ),
   );
   for (const old of prevConfluentZones) {
-    const key = `${old.direction}:${old.proximal}:${old.distal}`;
-    if (!newProxDistalSet.has(key) && old.id) {
+    const key = `${old.direction}:${old.proximalLine}:${old.distalLine}`;
+    if (!newKeySet.has(key) && old.id) {
       broadcastEvent(symbol, {
         type: "zone_expired",
         symbol,
-        zoneId: old.id,
+        zone: old,
+        timestamp: Date.now(),
       });
       logZoneTouch({
         zoneId: old.id,

@@ -33,12 +33,14 @@ minimumReleaseAge: 1440
 
 minimumReleaseAgeExclude:
   - '@replit/*'
+  - '@cmike444/*'
   - stripe-replit-sync
 
 onlyBuiltDependencies:
   - '@swc/core'
   - better-sqlite3
   - esbuild
+  - hf-types
   - msw
   - unrs-resolver
 

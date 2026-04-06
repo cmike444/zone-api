@@ -8,7 +8,7 @@ import {
 import { detectZones, scheduleRefresh } from "../services/zoneService.js";
 import { subscribePriceForSymbol } from "../services/priceService.js";
 import { fetchMetrics } from "../services/universeClient.js";
-import { ZoneDirection } from "../types.js";
+import type { ZoneDirection } from "../types.js";
 
 const READ_ONLY = {
   readOnlyHint: true,
@@ -85,9 +85,7 @@ export function registerTools(server: McpServer): void {
     READ_ONLY,
     async ({ limit, direction }) => {
       try {
-        let dir: ZoneDirection | undefined;
-        if (direction === "supply") dir = ZoneDirection.Supply;
-        else if (direction === "demand") dir = ZoneDirection.Demand;
+        const dir: ZoneDirection | undefined = direction;
         const zones = getTopZones(limit ?? 10, dir);
         return {
           content: [{ type: "text", text: JSON.stringify(zones, null, 2) }],

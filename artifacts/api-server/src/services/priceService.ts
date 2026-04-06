@@ -18,14 +18,14 @@ interface SymbolState {
 const symbolStates = new Map<string, SymbolState>();
 
 function isInsideZone(price: number, zone: ConfluentZone): boolean {
-  return price >= zone.distal && price <= zone.proximal;
+  return price >= zone.distalLine && price <= zone.proximalLine;
 }
 
 function isBreachingZone(price: number, zone: ConfluentZone): boolean {
-  if (zone.direction === 0) {
-    return price > zone.proximal;
+  if (zone.direction === "supply") {
+    return price > zone.proximalLine;
   }
-  return price < zone.distal;
+  return price < zone.distalLine;
 }
 
 export function subscribePriceForSymbol(symbol: string): void {
@@ -79,7 +79,7 @@ export function subscribePriceForSymbol(symbol: string): void {
         if (wasInside || zone.priceInside) {
           state.priceInsideZones.delete(id);
           markZoneBreached(id);
-          broadcastEvent(symbol, { type: "zone_breached", symbol, zone, price });
+          broadcastEvent(symbol, { type: "zone_breached", symbol, zone, price, timestamp: Date.now() });
           logZoneTouch({ zoneId: id, symbol, price, event: "zone_breached" });
           logger.debug({ symbol, zoneId: id, price }, "priceService: zone breached");
         }
@@ -87,7 +87,7 @@ export function subscribePriceForSymbol(symbol: string): void {
         if (!wasInside) {
           state.priceInsideZones.add(id);
           markPriceInside(id, true);
-          broadcastEvent(symbol, { type: "zone_entered", symbol, zone, price });
+          broadcastEvent(symbol, { type: "zone_entered", symbol, zone, price, timestamp: Date.now() });
           logZoneTouch({ zoneId: id, symbol, price, event: "zone_entered" });
           logger.debug({ symbol, zoneId: id, price }, "priceService: zone entered");
         }
@@ -95,7 +95,7 @@ export function subscribePriceForSymbol(symbol: string): void {
         if (wasInside) {
           state.priceInsideZones.delete(id);
           markPriceInside(id, false);
-          broadcastEvent(symbol, { type: "zone_exited", symbol, zone, price });
+          broadcastEvent(symbol, { type: "zone_exited", symbol, zone, price, timestamp: Date.now() });
           logZoneTouch({ zoneId: id, symbol, price, event: "zone_exited" });
           logger.debug({ symbol, zoneId: id, price }, "priceService: zone exited");
         }

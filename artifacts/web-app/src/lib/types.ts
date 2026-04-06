@@ -7,18 +7,16 @@ export interface Candle {
   volume?: number;
 }
 
-export enum ZoneDirection {
-  Supply = 0,
-  Demand = 1,
-}
+export type ZoneDirection = "supply" | "demand";
+export type ZonePattern = "RBD" | "DBD" | "DBR" | "RBR";
 
 export interface ConfluentZone {
-  id?: number;
+  id: number;
   symbol: string;
   timeframes: string[];
   direction: ZoneDirection;
-  proximal: number;
-  distal: number;
+  proximalLine: number;
+  distalLine: number;
   combinedConfidence: number;
   entryPrice?: number;
   stopPrice?: number;
@@ -32,16 +30,6 @@ export interface MonitoredSymbol {
   currentPrice?: number;
   zoneCount: number;
 }
-
-export type ZoneEventType =
-  | "zone_created"
-  | "zone_updated"
-  | "zone_expired"
-  | "zone_entered"
-  | "zone_exited"
-  | "zone_breached"
-  | "price"
-  | "candle";
 
 export interface PriceEvent {
   type: "price";
@@ -63,18 +51,21 @@ export interface ZoneCreatedEvent {
   type: "zone_created";
   symbol: string;
   zone: ConfluentZone;
+  timestamp: number;
 }
 
 export interface ZoneUpdatedEvent {
   type: "zone_updated";
   symbol: string;
   zone: ConfluentZone;
+  timestamp: number;
 }
 
 export interface ZoneExpiredEvent {
   type: "zone_expired";
   symbol: string;
-  zoneId: number;
+  zone: ConfluentZone;
+  timestamp: number;
 }
 
 export interface ZoneEnteredEvent {
@@ -82,6 +73,7 @@ export interface ZoneEnteredEvent {
   symbol: string;
   zone: ConfluentZone;
   price: number;
+  timestamp: number;
 }
 
 export interface ZoneExitedEvent {
@@ -89,6 +81,7 @@ export interface ZoneExitedEvent {
   symbol: string;
   zone: ConfluentZone;
   price: number;
+  timestamp: number;
 }
 
 export interface ZoneBreachedEvent {
@@ -96,6 +89,7 @@ export interface ZoneBreachedEvent {
   symbol: string;
   zone: ConfluentZone;
   price: number;
+  timestamp: number;
 }
 
 export type ZoneEvent =

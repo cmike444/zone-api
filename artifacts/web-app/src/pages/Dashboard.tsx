@@ -86,13 +86,13 @@ export default function Dashboard() {
         return;
       }
       if (event.type === "zone_expired") {
-        markZoneInactive(event.zoneId);
+        markZoneInactive(event.zone.id);
         setActiveZonesBySymbol((prev) => {
           const next = new Map(prev);
           for (const [sym, ids] of next.entries()) {
-            if (ids.has(event.zoneId)) {
+            if (ids.has(event.zone.id)) {
               const updated = new Set(ids);
-              updated.delete(event.zoneId);
+              updated.delete(event.zone.id);
               next.set(sym, updated);
             }
           }

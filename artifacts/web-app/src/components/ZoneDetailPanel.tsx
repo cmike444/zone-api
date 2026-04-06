@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import type { ConfluentZone } from "@/lib/types";
-import { ZoneDirection } from "@/lib/types";
 import { wsClient } from "@/lib/wsClient";
 import type { ZoneEvent } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -48,13 +47,13 @@ export function ZoneDetailPanel({ symbol }: Props) {
           prev.map((z) => (z.id === event.zone.id ? { ...z, priceInside: false } : z)),
         );
       } else if (event.type === "zone_expired" || event.type === "zone_breached") {
-        setZones((prev) => prev.filter((z) => z.id !== (event.type === "zone_expired" ? event.zoneId : event.zone?.id)));
+        setZones((prev) => prev.filter((z) => z.id !== event.zone.id));
       }
     });
   }, [symbol]);
 
-  const supply = zones.filter((z) => z.direction === ZoneDirection.Supply);
-  const demand = zones.filter((z) => z.direction === ZoneDirection.Demand);
+  const supply = zones.filter((z) => z.direction === "supply");
+  const demand = zones.filter((z) => z.direction === "demand");
 
   return (
     <aside className="w-52 min-w-[13rem] border-l border-border bg-sidebar flex flex-col">
@@ -107,7 +106,7 @@ function ZoneRow({ zone }: { zone: ConfluentZone }) {
         </span>
       </div>
       <div className="font-mono text-foreground mt-0.5">
-        {fmt(zone.proximal)} – {fmt(zone.distal)}
+        {fmt(zone.proximalLine)} – {fmt(zone.distalLine)}
       </div>
       {zone.priceInside && (
         <div className="text-primary text-xs mt-0.5">● Price inside</div>
