@@ -150,10 +150,9 @@ export function SymbolSidebar({ activeZoneSymbols }: Props) {
                     {s.symbol}
                   </span>
                   {isActive && (
-                    <Zap
-                      className="h-3 w-3 text-amber-400 shrink-0"
-                      title="Price is inside an active zone"
-                    />
+                    <span title="Price is inside an active zone">
+                      <Zap className="h-3 w-3 text-amber-400 shrink-0" />
+                    </span>
                   )}
                   {isLoading && (
                     <span className="h-3 w-3 rounded-full border-2 border-primary border-t-transparent animate-spin" />

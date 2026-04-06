@@ -50,6 +50,18 @@ function buildZoneMarkArea(zone: ConfluentZone) {
   };
 }
 
+function buildYBounds(candles: Candle[], zones: ConfluentZone[]): { yMin: number; yMax: number } {
+  const prices: number[] = [
+    ...candles.map((c) => c.high),
+    ...candles.map((c) => c.low),
+    ...zones.flatMap((z) => [z.proximalLine, z.distalLine]),
+  ];
+  if (prices.length === 0) return { yMin: 0, yMax: 1 };
+  const raw = { min: Math.min(...prices), max: Math.max(...prices) };
+  const pad = (raw.max - raw.min) * 0.025;
+  return { yMin: raw.min - pad, yMax: raw.max + pad };
+}
+
 function buildOptions(
   symbol: string,
   candles: Candle[],
@@ -59,6 +71,7 @@ function buildOptions(
   const xs = candles.map((c) => fmtDate(c.timestamp, tf));
   const ys = candles.map((c) => [c.open, c.close, c.low, c.high]);
   const zoneSeries = zones.map(buildZoneMarkArea);
+  const { yMin, yMax } = buildYBounds(candles, zones);
 
   return {
     backgroundColor: "#0d1117",
@@ -89,7 +102,8 @@ function buildOptions(
       boundaryGap: true,
     },
     yAxis: {
-      scale: true,
+      min: yMin,
+      max: yMax,
       axisLine: { lineStyle: { color: "#21262d" } },
       axisLabel: {
         color: "#8b949e",
@@ -100,8 +114,8 @@ function buildOptions(
       splitArea: { show: false },
     },
     dataZoom: [
-      { type: "inside", start: 60, end: 100 },
-      { type: "slider", height: 24, bottom: 0, fillerColor: "rgba(88,166,255,0.12)", handleStyle: { color: "#58a6ff" }, dataBackground: { areaStyle: { color: "rgba(88,166,255,0.06)" } }, textStyle: { color: "#8b949e" } },
+      { type: "inside", start: 0, end: 100, filterMode: "none" },
+      { type: "slider", height: 24, bottom: 0, start: 0, end: 100, fillerColor: "rgba(88,166,255,0.12)", handleStyle: { color: "#58a6ff" }, dataBackground: { areaStyle: { color: "rgba(88,166,255,0.06)" } }, textStyle: { color: "#8b949e" } },
     ],
     series: [
       {
