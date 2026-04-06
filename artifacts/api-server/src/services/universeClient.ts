@@ -9,14 +9,20 @@ function getBaseUrl(): string {
   ).replace(/\/$/, "");
 }
 
+function getCandleBaseUrl(): string {
+  return (
+    process.env["CANDLE_UNIVERSE_URL"] ?? getBaseUrl()
+  ).replace(/\/$/, "");
+}
+
 function getWsBaseUrl(): string {
   const base = getBaseUrl()
     .replace(/^https?/, (p) => (p === "https" ? "wss" : "ws"));
   return base;
 }
 
-async function fetchJson<T>(path: string): Promise<T> {
-  const url = `${getBaseUrl()}${path}`;
+async function fetchJson<T>(baseUrl: string, path: string): Promise<T> {
+  const url = `${baseUrl}${path}`;
   const res = await fetch(url, { headers: getInternalAuthHeaders() });
   if (!res.ok) {
     throw new Error(`universe-client: ${url} responded ${res.status}`);
@@ -24,15 +30,43 @@ async function fetchJson<T>(path: string): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+type RawCandle = {
+  timestamp?: number;
+  time?: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume?: number;
+};
+
+function normalizeCandle(raw: RawCandle): Candle {
+  return {
+    timestamp: raw.timestamp ?? raw.time ?? 0,
+    open: raw.open,
+    high: raw.high,
+    low: raw.low,
+    close: raw.close,
+    volume: raw.volume,
+  };
+}
+
 export async function fetchCandles(
   symbol: string,
   timeframe: string,
 ): Promise<Candle[]> {
-  return fetchJson<Candle[]>(`/candles/${encodeURIComponent(symbol)}/${encodeURIComponent(timeframe)}`);
+  const raw = await fetchJson<RawCandle[]>(
+    getCandleBaseUrl(),
+    `/candles/${encodeURIComponent(symbol)}/${encodeURIComponent(timeframe)}`,
+  );
+  const candles = raw.map(normalizeCandle).filter(
+    (c) => c.timestamp > 0 && (c.high > 0 || c.close > 0),
+  );
+  return candles;
 }
 
 export async function fetchMetrics(symbol: string): Promise<MarketMetrics> {
-  return fetchJson<MarketMetrics>(`/metrics/${encodeURIComponent(symbol)}`);
+  return fetchJson<MarketMetrics>(getBaseUrl(), `/metrics/${encodeURIComponent(symbol)}`);
 }
 
 export interface PriceTick {
