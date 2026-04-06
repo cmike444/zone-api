@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useStore } from "@/lib/store";
 import { wsClient } from "@/lib/wsClient";
+import { api } from "@/lib/api";
 import type { ZoneEvent } from "@/lib/types";
 import { SymbolSidebar } from "@/components/SymbolSidebar";
 import { ChartPanel } from "@/components/ChartPanel";
@@ -9,9 +10,23 @@ import { useToast } from "@/hooks/use-toast";
 import { ZoneDirection } from "@/lib/types";
 
 export default function Dashboard() {
-  const { selectedSymbol, updateQuote, markZoneActive, markZoneInactive } = useStore();
+  const { selectedSymbol, updateQuote, markZoneActive, markZoneInactive, setActiveZoneIds } = useStore();
   const { toast } = useToast();
   const [activeZoneSymbols, setActiveZoneSymbols] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    let cancelled = false;
+    api.getActiveZones().then((active) => {
+      if (cancelled) return;
+      const ids = new Set<number>(
+        active.map((z) => z.id).filter((id): id is number => id != null),
+      );
+      setActiveZoneIds(ids);
+      const syms = new Set<string>(active.filter((z) => z.priceInside).map((z) => z.symbol));
+      setActiveZoneSymbols(syms);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [setActiveZoneIds]);
 
   useEffect(() => {
     const unsub = wsClient.subscribe((event: ZoneEvent) => {
@@ -37,6 +52,12 @@ export default function Dashboard() {
           next.delete(event.symbol);
           return next;
         });
+        toast({
+          title: `Zone exited — ${event.symbol}`,
+          description: `Price $${event.price.toFixed(2)} left ${
+            event.zone.direction === ZoneDirection.Supply ? "supply" : "demand"
+          } zone $${event.zone.proximal.toFixed(2)} – $${event.zone.distal.toFixed(2)}`,
+        });
         return;
       }
       if (event.type === "zone_breached") {
@@ -50,7 +71,7 @@ export default function Dashboard() {
       }
     });
     return unsub;
-  }, [updateQuote, markZoneActive, markZoneInactive, toast]);
+  }, [updateQuote, markZoneActive, markZoneInactive, setActiveZoneIds, toast]);
 
   return (
     <div className="flex flex-1 min-h-0 overflow-hidden">
