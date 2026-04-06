@@ -24,3 +24,9 @@ expertMode = true
 [postMerge]
 path = "scripts/post-merge.sh"
 timeoutMs = 20000
+
+[userenv]
+
+[userenv.shared]
+SYMBOL_UNIVERSE_URL = "http://localhost:3005"
+ZONE_REFRESH_INTERVAL_MINUTES = "60"
