@@ -247,9 +247,34 @@ export async function detectZones(symbol: string): Promise<void> {
   }
 
   const prevConfluentZones = getConfluentZones(symbol);
-  deleteConfluentZonesBySymbol(symbol);
-
   const newConfluentZones = computeConfluentZones(symbol, zonesByTf);
+
+  const newKeySet = new Set(
+    newConfluentZones.map(
+      (z) => `${z.direction}:${z.proximalLine}:${z.distalLine}`,
+    ),
+  );
+
+  // Broadcast and log expired events BEFORE deleting — old IDs must still exist in DB
+  for (const old of prevConfluentZones) {
+    const key = `${old.direction}:${old.proximalLine}:${old.distalLine}`;
+    if (!newKeySet.has(key) && old.id) {
+      broadcastEvent(symbol, {
+        type: "zone_expired",
+        symbol,
+        zone: old,
+        timestamp: Date.now(),
+      });
+      try {
+        logZoneTouch({ zoneId: old.id, symbol, price: 0, event: "zone_expired" });
+      } catch {
+        // non-critical audit log; do not abort zone detection
+      }
+    }
+  }
+
+  // Now safe to replace confluent zones in DB
+  deleteConfluentZonesBySymbol(symbol);
 
   for (const cz of newConfluentZones) {
     const id = upsertConfluentZone(cz);
@@ -264,33 +289,18 @@ export async function detectZones(symbol: string): Promise<void> {
 
     if (existed) {
       broadcastEvent(symbol, { type: "zone_updated", symbol, zone: cz, timestamp: Date.now() });
-      logZoneTouch({ zoneId: id, symbol, price: 0, event: "zone_updated" });
+      try {
+        logZoneTouch({ zoneId: id, symbol, price: 0, event: "zone_updated" });
+      } catch {
+        // non-critical audit log; do not abort zone detection
+      }
     } else {
       broadcastEvent(symbol, { type: "zone_created", symbol, zone: cz, timestamp: Date.now() });
-      logZoneTouch({ zoneId: id, symbol, price: 0, event: "zone_created" });
-    }
-  }
-
-  const newKeySet = new Set(
-    newConfluentZones.map(
-      (z) => `${z.direction}:${z.proximalLine}:${z.distalLine}`,
-    ),
-  );
-  for (const old of prevConfluentZones) {
-    const key = `${old.direction}:${old.proximalLine}:${old.distalLine}`;
-    if (!newKeySet.has(key) && old.id) {
-      broadcastEvent(symbol, {
-        type: "zone_expired",
-        symbol,
-        zone: old,
-        timestamp: Date.now(),
-      });
-      logZoneTouch({
-        zoneId: old.id,
-        symbol,
-        price: 0,
-        event: "zone_expired",
-      });
+      try {
+        logZoneTouch({ zoneId: id, symbol, price: 0, event: "zone_created" });
+      } catch {
+        // non-critical audit log; do not abort zone detection
+      }
     }
   }
 

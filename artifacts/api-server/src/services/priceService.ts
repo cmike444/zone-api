@@ -80,7 +80,7 @@ export function subscribePriceForSymbol(symbol: string): void {
           state.priceInsideZones.delete(id);
           markZoneBreached(id);
           broadcastEvent(symbol, { type: "zone_breached", symbol, zone, price, timestamp: Date.now() });
-          logZoneTouch({ zoneId: id, symbol, price, event: "zone_breached" });
+          try { logZoneTouch({ zoneId: id, symbol, price, event: "zone_breached" }); } catch { /* non-critical */ }
           logger.debug({ symbol, zoneId: id, price }, "priceService: zone breached");
         }
       } else if (isInsideZone(price, zone)) {
@@ -88,7 +88,7 @@ export function subscribePriceForSymbol(symbol: string): void {
           state.priceInsideZones.add(id);
           markPriceInside(id, true);
           broadcastEvent(symbol, { type: "zone_entered", symbol, zone, price, timestamp: Date.now() });
-          logZoneTouch({ zoneId: id, symbol, price, event: "zone_entered" });
+          try { logZoneTouch({ zoneId: id, symbol, price, event: "zone_entered" }); } catch { /* non-critical */ }
           logger.debug({ symbol, zoneId: id, price }, "priceService: zone entered");
         }
       } else {
@@ -96,7 +96,7 @@ export function subscribePriceForSymbol(symbol: string): void {
           state.priceInsideZones.delete(id);
           markPriceInside(id, false);
           broadcastEvent(symbol, { type: "zone_exited", symbol, zone, price, timestamp: Date.now() });
-          logZoneTouch({ zoneId: id, symbol, price, event: "zone_exited" });
+          try { logZoneTouch({ zoneId: id, symbol, price, event: "zone_exited" }); } catch { /* non-critical */ }
           logger.debug({ symbol, zoneId: id, price }, "priceService: zone exited");
         }
       }
