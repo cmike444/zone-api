@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import type { ConfluentZone } from "@/lib/types";
 import { wsClient } from "@/lib/wsClient";
@@ -9,13 +9,28 @@ interface Props {
   symbol: string;
 }
 
+type ZoneStatus = {
+  state: "entered" | "breached";
+  price: number;
+  at: number;
+};
+
 function fmt(n: number | undefined) {
   if (n == null) return "—";
   return n < 10 ? `$${n.toFixed(3)}` : `$${n.toFixed(2)}`;
 }
 
+function relativeTime(ts: number): string {
+  const sec = Math.round((Date.now() - ts) / 1000);
+  if (sec < 5) return "just now";
+  if (sec < 60) return `${sec}s ago`;
+  return `${Math.round(sec / 60)}m ago`;
+}
+
 export function ZoneDetailPanel({ symbol }: Props) {
   const [zones, setZones] = useState<ConfluentZone[]>([]);
+  const [statuses, setStatuses] = useState<Map<number, ZoneStatus>>(new Map());
+  const timersRef = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
 
   useEffect(() => {
     let cancelled = false;
@@ -26,8 +41,17 @@ export function ZoneDetailPanel({ symbol }: Props) {
   }, [symbol]);
 
   useEffect(() => {
+    const timers = timersRef.current;
+    return () => {
+      for (const t of timers.values()) clearTimeout(t);
+      timers.clear();
+    };
+  }, []);
+
+  useEffect(() => {
     return wsClient.subscribe((event: ZoneEvent) => {
       if (event.symbol !== symbol) return;
+
       if (event.type === "zone_created" || event.type === "zone_updated") {
         setZones((prev) => {
           const idx = prev.findIndex((z) => z.id === event.zone.id);
@@ -38,16 +62,63 @@ export function ZoneDetailPanel({ symbol }: Props) {
           }
           return [...prev, event.zone];
         });
-      } else if (event.type === "zone_entered") {
+        return;
+      }
+
+      if (event.type === "zone_entered") {
+        setStatuses((prev) =>
+          new Map(prev).set(event.zone.id, {
+            state: "entered",
+            price: event.price,
+            at: Date.now(),
+          }),
+        );
         setZones((prev) =>
           prev.map((z) => (z.id === event.zone.id ? { ...z, priceInside: true } : z)),
         );
-      } else if (event.type === "zone_exited") {
+        return;
+      }
+
+      if (event.type === "zone_exited") {
+        setStatuses((prev) => {
+          const next = new Map(prev);
+          next.delete(event.zone.id);
+          return next;
+        });
         setZones((prev) =>
           prev.map((z) => (z.id === event.zone.id ? { ...z, priceInside: false } : z)),
         );
-      } else if (event.type === "zone_expired" || event.type === "zone_breached") {
+        return;
+      }
+
+      if (event.type === "zone_breached") {
+        setStatuses((prev) =>
+          new Map(prev).set(event.zone.id, {
+            state: "breached",
+            price: event.price,
+            at: Date.now(),
+          }),
+        );
+        const t = setTimeout(() => {
+          setZones((prev) => prev.filter((z) => z.id !== event.zone.id));
+          setStatuses((prev) => {
+            const next = new Map(prev);
+            next.delete(event.zone.id);
+            return next;
+          });
+          timersRef.current.delete(event.zone.id);
+        }, 2500);
+        timersRef.current.set(event.zone.id, t);
+        return;
+      }
+
+      if (event.type === "zone_expired") {
         setZones((prev) => prev.filter((z) => z.id !== event.zone.id));
+        setStatuses((prev) => {
+          const next = new Map(prev);
+          next.delete(event.zone.id);
+          return next;
+        });
       }
     });
   }, [symbol]);
@@ -70,7 +141,7 @@ export function ZoneDetailPanel({ symbol }: Props) {
           <div className="px-2 pt-2">
             <div className="text-xs font-medium text-red-400 px-1 mb-1">Supply</div>
             {supply.map((z, i) => (
-              <ZoneRow key={z.id ?? i} zone={z} />
+              <ZoneRow key={z.id ?? i} zone={z} status={statuses.get(z.id)} />
             ))}
           </div>
         )}
@@ -78,7 +149,7 @@ export function ZoneDetailPanel({ symbol }: Props) {
           <div className="px-2 pt-2">
             <div className="text-xs font-medium text-green-400 px-1 mb-1">Demand</div>
             {demand.map((z, i) => (
-              <ZoneRow key={z.id ?? i} zone={z} />
+              <ZoneRow key={z.id ?? i} zone={z} status={statuses.get(z.id)} />
             ))}
           </div>
         )}
@@ -87,29 +158,53 @@ export function ZoneDetailPanel({ symbol }: Props) {
   );
 }
 
-function ZoneRow({ zone }: { zone: ConfluentZone }) {
+function ZoneRow({ zone, status }: { zone: ConfluentZone; status?: ZoneStatus }) {
+  const isEntered = status?.state === "entered";
+  const isBreached = status?.state === "breached";
+
   return (
     <div
       className={cn(
-        "px-2 py-1.5 mb-0.5 rounded text-xs",
-        zone.priceInside
-          ? "bg-primary/10 border border-primary/30"
-          : "bg-accent/50",
+        "px-2 py-1.5 mb-0.5 rounded text-xs transition-colors duration-300",
+        isBreached
+          ? "bg-red-500/10 ring-1 ring-red-500/50"
+          : isEntered
+            ? "bg-amber-500/10 ring-1 ring-amber-400/50"
+            : "bg-accent/50",
       )}
     >
       <div className="flex justify-between">
         <span className="text-muted-foreground">
           {Array.isArray(zone.timeframes) ? zone.timeframes.join(",") : "—"}
         </span>
-        <span className="text-primary font-mono">
+        <span className={cn(
+          "font-mono",
+          isBreached ? "text-red-400" : isEntered ? "text-amber-400" : "text-primary",
+        )}>
           {zone.combinedConfidence.toFixed(2)}
         </span>
       </div>
+
       <div className="font-mono text-foreground mt-0.5">
         {fmt(zone.proximalLine)} – {fmt(zone.distalLine)}
       </div>
-      {zone.priceInside && (
-        <div className="text-primary text-xs mt-0.5">● Price inside</div>
+
+      {isEntered && (
+        <div className="flex items-center gap-1 mt-1 text-amber-400">
+          <span className="relative flex h-1.5 w-1.5">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+            <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-400" />
+          </span>
+          <span>Inside {fmt(status.price)}</span>
+          <span className="text-amber-400/50 ml-auto">{relativeTime(status.at)}</span>
+        </div>
+      )}
+
+      {isBreached && (
+        <div className="flex items-center gap-1 mt-1 text-red-400">
+          <span className="text-red-400">✕</span>
+          <span>Breached {fmt(status.price)}</span>
+        </div>
       )}
     </div>
   );
