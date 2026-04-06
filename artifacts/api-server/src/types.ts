@@ -10,9 +10,11 @@ export type {
   SupplyZone,
   DemandZone,
   Zone,
-  ConfluentZone,
   ZoneEvent,
 } from "hf-types";
+
+import type { ConfluentZone as BaseConfluentZone } from "hf-types";
+export type ConfluentZone = BaseConfluentZone & { startTimestamp?: number };
 
 export interface MonitoredSymbol {
   symbol: string;

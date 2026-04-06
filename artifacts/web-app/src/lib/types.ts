@@ -23,6 +23,7 @@ export interface ConfluentZone {
   targetPrice?: number;
   priceInside: boolean;
   computedAt: number;
+  startTimestamp?: number;
 }
 
 export interface MonitoredSymbol {

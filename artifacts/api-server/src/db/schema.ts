@@ -87,6 +87,13 @@ export function initDb(): Database.Database {
     );
   `);
 
+  const existingCols = (
+    _db.prepare("PRAGMA table_info(confluent_zones)").all() as { name: string }[]
+  ).map((c) => c.name);
+  if (!existingCols.includes("start_timestamp")) {
+    _db.exec("ALTER TABLE confluent_zones ADD COLUMN start_timestamp INTEGER");
+  }
+
   logger.info({ path: DB_PATH }, "SQLite database initialized");
   return _db;
 }

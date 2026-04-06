@@ -25,26 +25,47 @@ function fmtDate(ts: number, tf: TF): string {
   });
 }
 
-function buildZoneMarkArea(zone: ConfluentZone) {
+function findNearestCandleLabel(
+  ts: number,
+  candles: Candle[],
+  tf: TF,
+): string | undefined {
+  if (candles.length === 0) return undefined;
+  let best = candles[0]!;
+  let bestDelta = Math.abs(best.timestamp - ts);
+  for (const c of candles) {
+    const delta = Math.abs(c.timestamp - ts);
+    if (delta < bestDelta) {
+      best = c;
+      bestDelta = delta;
+    }
+  }
+  return fmtDate(best.timestamp, tf);
+}
+
+function buildZoneMarkArea(zone: ConfluentZone, candles: Candle[], tf: TF) {
   const isSupply = zone.direction === "supply";
+  const xStart =
+    zone.startTimestamp != null
+      ? findNearestCandleLabel(zone.startTimestamp, candles, tf)
+      : undefined;
+
+  const startPoint: Record<string, unknown> = {
+    yAxis: zone.distalLine,
+    itemStyle: {
+      color: isSupply ? "rgba(248,81,73,0.12)" : "rgba(63,185,80,0.12)",
+      borderColor: isSupply ? "#f85149" : "#3fb950",
+      borderWidth: 1,
+    },
+  };
+  if (xStart !== undefined) startPoint["xAxis"] = xStart;
+
   return {
     name: `${isSupply ? "Supply" : "Demand"} ${zone.id}`,
     type: "line" as const,
     markArea: {
       silent: true,
-      data: [
-        [
-          {
-            yAxis: zone.distalLine,
-            itemStyle: {
-              color: isSupply ? "rgba(248,81,73,0.12)" : "rgba(63,185,80,0.12)",
-              borderColor: isSupply ? "#f85149" : "#3fb950",
-              borderWidth: 1,
-            },
-          },
-          { yAxis: zone.proximalLine },
-        ],
-      ],
+      data: [[startPoint, { yAxis: zone.proximalLine }]],
     },
     data: [],
   };
@@ -70,7 +91,7 @@ function buildOptions(
 ) {
   const xs = candles.map((c) => fmtDate(c.timestamp, tf));
   const ys = candles.map((c) => [c.open, c.close, c.low, c.high]);
-  const zoneSeries = zones.map(buildZoneMarkArea);
+  const zoneSeries = zones.map((z) => buildZoneMarkArea(z, candles, tf));
   const { yMin, yMax } = buildYBounds(candles, zones);
 
   return {

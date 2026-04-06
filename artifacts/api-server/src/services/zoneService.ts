@@ -140,6 +140,8 @@ function computeConfluentZones(
     const proximalLine = Math.max(...grouped.map((z) => z.proximalLine));
     const distalLine = Math.min(...grouped.map((z) => z.distalLine));
 
+    const startTimestamp = Math.min(...grouped.map((z) => z.endTimestamp));
+
     confluent.push({
       id: 0,
       symbol,
@@ -150,6 +152,7 @@ function computeConfluentZones(
       combinedConfidence,
       priceInside: false,
       computedAt: Date.now(),
+      startTimestamp,
     });
   }
 

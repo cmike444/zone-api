@@ -33,6 +33,7 @@ interface ConfluentZoneRow {
   target_price: number | null;
   price_inside: number;
   computed_at: number;
+  start_timestamp: number | null;
 }
 
 function rowToZone(row: ZoneRow): Zone {
@@ -70,6 +71,7 @@ function rowToConfluentZone(row: ConfluentZoneRow): ConfluentZone {
     targetPrice: row.target_price ?? undefined,
     priceInside: row.price_inside === 1,
     computedAt: row.computed_at,
+    startTimestamp: row.start_timestamp ?? undefined,
   };
 }
 
@@ -158,10 +160,10 @@ export function upsertConfluentZone(zone: ConfluentZone): number {
   const stmt = db.prepare(`
     INSERT INTO confluent_zones
       (symbol, timeframes, direction, proximal_line, distal_line, combined_confidence,
-       entry_price, stop_price, target_price, price_inside, computed_at)
+       entry_price, stop_price, target_price, price_inside, computed_at, start_timestamp)
     VALUES
       (@symbol, @timeframes, @direction, @proximal_line, @distal_line, @combined_confidence,
-       @entry_price, @stop_price, @target_price, @price_inside, @computed_at)
+       @entry_price, @stop_price, @target_price, @price_inside, @computed_at, @start_timestamp)
   `);
   const result = stmt.run({
     symbol: zone.symbol,
@@ -175,6 +177,7 @@ export function upsertConfluentZone(zone: ConfluentZone): number {
     target_price: zone.targetPrice ?? null,
     price_inside: zone.priceInside ? 1 : 0,
     computed_at: zone.computedAt,
+    start_timestamp: zone.startTimestamp ?? null,
   });
   return result.lastInsertRowid as number;
 }
