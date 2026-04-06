@@ -38,7 +38,7 @@ export function ZoneScanner() {
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
   const [filterDir, setFilterDir] = useState<"all" | "supply" | "demand">("all");
   const [filterStatus, setFilterStatus] = useState<"all" | "active" | "stale" | "fresh">("all");
-  const [minConf, setMinConf] = useState(0);
+  const [minConf, setMinConf] = useState(0.6);
   const [sortKey, setSortKey] = useState<SortKey>("combinedConfidence");
   const [sortDir, setSortDir] = useState<Dir>("desc");
 
@@ -174,13 +174,13 @@ export function ZoneScanner() {
 
         <div className="flex items-center gap-2 flex-1 min-w-[12rem]">
           <span className="text-xs text-muted-foreground whitespace-nowrap">
-            Min confidence: <strong className="text-foreground">{minConf.toFixed(1)}</strong>
+            Min confidence: <strong className="text-foreground">{Math.round(minConf * 100)}%</strong>
           </span>
           <input
             type="range"
             min={0}
-            max={3}
-            step={0.1}
+            max={1}
+            step={0.05}
             value={minConf}
             onChange={(e) => setMinConf(Number(e.target.value))}
             className="flex-1 accent-primary"
