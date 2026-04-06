@@ -1,4 +1,4 @@
-import { subscribePrice } from "./universeClient.js";
+import { subscribePrice, type CandleTick } from "./universeClient.js";
 import {
   getConfluentZones,
   markPriceInside,
@@ -39,6 +39,22 @@ export function subscribePriceForSymbol(symbol: string): void {
     priceInsideZones: new Set(),
     currentPrice: 0,
   };
+
+  function onCandle(candle: CandleTick): void {
+    broadcastEvent(symbol, {
+      type: "candle",
+      symbol,
+      timeframe: candle.timeframe,
+      candle: {
+        timestamp: candle.timestamp,
+        open: candle.open,
+        high: candle.high,
+        low: candle.low,
+        close: candle.close,
+        volume: candle.volume,
+      },
+    });
+  }
 
   const unsubscribe = subscribePrice(symbol, (tick) => {
     state.currentPrice = tick.price;
@@ -85,7 +101,7 @@ export function subscribePriceForSymbol(symbol: string): void {
         }
       }
     }
-  });
+  }, undefined, onCandle);
 
   state.unsubscribe = unsubscribe;
   symbolStates.set(symbol, state);

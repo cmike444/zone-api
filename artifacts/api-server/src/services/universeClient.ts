@@ -42,6 +42,16 @@ export interface PriceTick {
   timestamp: number;
 }
 
+export interface CandleTick {
+  timeframe: string;
+  timestamp: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume?: number;
+}
+
 const RECONNECT_DELAY_MS = 3000;
 const MAX_RECONNECT_DELAY_MS = 30000;
 
@@ -49,6 +59,7 @@ export function subscribePrice(
   symbol: string,
   onTick: (tick: PriceTick) => void,
   onClose?: () => void,
+  onCandle?: (candle: CandleTick) => void,
 ): () => void {
   let ws: WebSocket | null = null;
   let stopped = false;
@@ -76,9 +87,31 @@ export function subscribePrice(
 
     ws.on("message", (data) => {
       try {
-        const msg = JSON.parse(data.toString()) as { type: string; price: number; bid?: number; ask?: number; timestamp: number };
-        if (msg.type === "price") {
+        const msg = JSON.parse(data.toString()) as {
+          type: string;
+          price?: number;
+          bid?: number;
+          ask?: number;
+          timestamp?: number;
+          timeframe?: string;
+          open?: number;
+          high?: number;
+          low?: number;
+          close?: number;
+          volume?: number;
+        };
+        if (msg.type === "price" && msg.price != null && msg.timestamp != null) {
           onTick({ price: msg.price, bid: msg.bid, ask: msg.ask, timestamp: msg.timestamp });
+        } else if (msg.type === "candle" && onCandle && msg.timeframe && msg.timestamp != null) {
+          onCandle({
+            timeframe: msg.timeframe,
+            timestamp: msg.timestamp,
+            open: msg.open ?? 0,
+            high: msg.high ?? 0,
+            low: msg.low ?? 0,
+            close: msg.close ?? 0,
+            volume: msg.volume,
+          });
         }
       } catch {
         // ignore malformed messages

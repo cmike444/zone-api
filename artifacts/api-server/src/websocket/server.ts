@@ -18,7 +18,7 @@ export function createWsServer(httpServer: Server): WebSocketServer {
       return;
     }
 
-    if (!req.url.startsWith("/stream")) {
+    if (req.url !== "/stream" && !req.url.startsWith("/stream/")) {
       socket.destroy();
       return;
     }

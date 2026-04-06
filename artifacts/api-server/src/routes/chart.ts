@@ -84,8 +84,9 @@ router.get("/:symbol", (req, res) => {
     async function loadInitialData() {
       const headers = TOKEN ? { Authorization: "Bearer " + TOKEN } : {};
       try {
-        const [zonesRes, scanRes] = await Promise.all([
+        const [zonesRes, candlesRes, scanRes] = await Promise.all([
           fetch(BASE + "/zones/" + SYMBOL + "/confluent", { headers }),
+          fetch(BASE + "/candles/" + SYMBOL + "/60m", { headers }).catch(() => null),
           fetch(BASE + "/scan/" + SYMBOL, { headers }).catch(() => null),
         ]);
         const zones = await zonesRes.json();
@@ -94,6 +95,12 @@ router.get("/:symbol", (req, res) => {
           const ol = buildZoneOverlay(zone, zone.direction === 0);
           if (zone.direction === 0) supplyOverlays.push(ol);
           else demandOverlays.push(ol);
+        }
+        if (candlesRes?.ok) {
+          const raw = await candlesRes.json();
+          for (const c of raw) {
+            candles.push([c.timestamp, c.open, c.high, c.low, c.close]);
+          }
         }
         if (scanRes?.ok) {
           const scan = await scanRes.json();
