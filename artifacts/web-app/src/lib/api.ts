@@ -1,5 +1,5 @@
-const TOKEN: string = import.meta.env.VITE_API_TOKEN as string ?? "";
-const API_BASE = "/api";
+const TOKEN: string = (import.meta.env.VITE_INTERNAL_API_TOKEN as string) ?? "";
+const API_BASE: string = ((import.meta.env.VITE_API_BASE_URL as string) || "/api").replace(/\/$/, "");
 
 function authHeaders(): HeadersInit {
   return TOKEN ? { Authorization: `Bearer ${TOKEN}` } : {};
@@ -21,11 +21,15 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-export function getWsUrl(symbol: string): string {
+export function getWsUrl(): string {
   const origin = window.location.origin
     .replace(/^https/, "wss")
     .replace(/^http/, "ws");
-  return `${origin}/stream/${symbol}${TOKEN ? `?token=${TOKEN}` : ""}`;
+  const base = API_BASE.startsWith("http")
+    ? API_BASE.replace(/^https/, "wss").replace(/^http/, "ws")
+    : origin;
+  const basePath = API_BASE.startsWith("http") ? "" : API_BASE;
+  return `${base}${basePath}/stream${TOKEN ? `?token=${TOKEN}` : ""}`;
 }
 
 export const api = {

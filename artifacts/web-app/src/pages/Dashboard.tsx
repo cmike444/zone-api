@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useStore } from "@/lib/store";
-import { wsClient, wsStatus } from "@/lib/wsClient";
-import { getWsUrl } from "@/lib/api";
+import { wsClient } from "@/lib/wsClient";
 import type { ZoneEvent } from "@/lib/types";
 import { SymbolSidebar } from "@/components/SymbolSidebar";
 import { ChartPanel } from "@/components/ChartPanel";
@@ -10,23 +9,14 @@ import { useToast } from "@/hooks/use-toast";
 import { ZoneDirection } from "@/lib/types";
 
 export default function Dashboard() {
-  const { selectedSymbol, updatePrice, markZoneActive, markZoneInactive } = useStore();
+  const { selectedSymbol, updateQuote, markZoneActive, markZoneInactive } = useStore();
   const { toast } = useToast();
   const [activeZoneSymbols, setActiveZoneSymbols] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    if (!selectedSymbol) {
-      wsClient.disconnect();
-      wsStatus.emit("idle");
-      return;
-    }
-    wsClient.connect(selectedSymbol, getWsUrl);
-  }, [selectedSymbol]);
-
-  useEffect(() => {
     const unsub = wsClient.subscribe((event: ZoneEvent) => {
       if (event.type === "price") {
-        updatePrice(event.symbol, event.price);
+        updateQuote(event.symbol, event.price, event.bid, event.ask);
         return;
       }
       if (event.type === "zone_entered") {
@@ -60,7 +50,7 @@ export default function Dashboard() {
       }
     });
     return unsub;
-  }, [updatePrice, markZoneActive, markZoneInactive, toast]);
+  }, [updateQuote, markZoneActive, markZoneInactive, toast]);
 
   return (
     <div className="flex flex-1 min-h-0 overflow-hidden">

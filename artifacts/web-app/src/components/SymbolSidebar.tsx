@@ -9,7 +9,7 @@ interface Props {
 }
 
 export function SymbolSidebar({ activeZoneSymbols }: Props) {
-  const { symbols, selectedSymbol, prices, setSelectedSymbol, addSymbol, removeSymbol } =
+  const { symbols, selectedSymbol, quotes, setSelectedSymbol, addSymbol, removeSymbol } =
     useStore();
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState<string | null>(null);
@@ -93,7 +93,10 @@ export function SymbolSidebar({ activeZoneSymbols }: Props) {
           </div>
         )}
         {symbols.map((s) => {
-          const price = prices[s.symbol];
+          const quote = quotes[s.symbol];
+          const price = quote?.price;
+          const bid = quote?.bid;
+          const ask = quote?.ask;
           const isActive = activeZoneSymbols.has(s.symbol);
           const isSelected = selectedSymbol === s.symbol;
           const isLoading = loading === s.symbol;
@@ -119,14 +122,28 @@ export function SymbolSidebar({ activeZoneSymbols }: Props) {
                     <span className="h-3 w-3 rounded-full border-2 border-primary border-t-transparent animate-spin" />
                   )}
                 </div>
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between mt-0.5">
                   <span className="text-xs text-primary font-mono">
-                    {price != null ? `$${price.toFixed(2)}` : "—"}
+                    {price != null ? `$${price < 10 ? price.toFixed(4) : price.toFixed(2)}` : "—"}
                   </span>
                   <span className="text-xs text-muted-foreground">
                     {s.zoneCount > 0 ? `${s.zoneCount}z` : ""}
                   </span>
                 </div>
+                {(bid != null || ask != null) && (
+                  <div className="flex gap-2 mt-0.5 text-xs font-mono">
+                    {bid != null && (
+                      <span className="text-green-400">
+                        B {bid < 10 ? bid.toFixed(4) : bid.toFixed(2)}
+                      </span>
+                    )}
+                    {ask != null && (
+                      <span className="text-red-400">
+                        A {ask < 10 ? ask.toFixed(4) : ask.toFixed(2)}
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
               <button
                 onClick={(e) => handleRemove(s.symbol, e)}

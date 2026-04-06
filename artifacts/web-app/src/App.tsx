@@ -3,7 +3,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { AppShell } from "@/components/AppShell";
 import { useStore } from "@/lib/store";
-import { api } from "@/lib/api";
+import { api, getWsUrl } from "@/lib/api";
+import { wsClient } from "@/lib/wsClient";
 import Dashboard from "@/pages/Dashboard";
 import Scanner from "@/pages/Scanner";
 
@@ -34,10 +35,15 @@ function AppContent() {
 
     ping();
     loadSymbols();
-
     interval = setInterval(ping, 15_000);
+
     return () => clearInterval(interval);
   }, [setSymbols, setApiConnected]);
+
+  useEffect(() => {
+    wsClient.connect(getWsUrl);
+    return () => wsClient.disconnect();
+  }, []);
 
   return (
     <AppShell>

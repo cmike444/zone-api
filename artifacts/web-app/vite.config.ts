@@ -26,12 +26,13 @@ if (!basePath) {
   );
 }
 
+const token = process.env.INTERNAL_API_TOKEN ?? "";
+
 export default defineConfig({
   base: basePath,
   define: {
-    "import.meta.env.VITE_API_TOKEN": JSON.stringify(
-      process.env.VITE_API_TOKEN ?? process.env.INTERNAL_API_TOKEN ?? "",
-    ),
+    "import.meta.env.VITE_INTERNAL_API_TOKEN": JSON.stringify(token),
+    "import.meta.env.VITE_API_BASE_URL": JSON.stringify("/api"),
   },
   plugins: [
     react(),

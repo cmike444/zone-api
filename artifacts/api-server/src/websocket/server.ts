@@ -9,6 +9,22 @@ let wss: WebSocketServer | null = null;
 const globalClients = new Set<WebSocket>();
 const symbolRooms = new Map<string, Set<WebSocket>>();
 
+function isStreamPath(url: string): boolean {
+  return (
+    url === "/stream" ||
+    url.startsWith("/stream?") ||
+    url.startsWith("/stream/") ||
+    url === "/api/stream" ||
+    url.startsWith("/api/stream?") ||
+    url.startsWith("/api/stream/")
+  );
+}
+
+function extractSymbol(url: string): string | null {
+  const m = url.match(/^\/(?:api\/)?stream\/([^?/]+)/);
+  return m ? decodeURIComponent(m[1]!) : null;
+}
+
 export function createWsServer(httpServer: Server): WebSocketServer {
   wss = new WebSocketServer({ noServer: true });
 
@@ -18,7 +34,7 @@ export function createWsServer(httpServer: Server): WebSocketServer {
       return;
     }
 
-    if (req.url !== "/stream" && !req.url.startsWith("/stream/")) {
+    if (!isStreamPath(req.url)) {
       socket.destroy();
       return;
     }
@@ -34,8 +50,7 @@ export function createWsServer(httpServer: Server): WebSocketServer {
 
   wss.on("connection", (ws, req) => {
     const url = req.url ?? "/stream";
-    const symbolMatch = url.match(/^\/stream\/([^?/]+)/);
-    const symbol = symbolMatch ? decodeURIComponent(symbolMatch[1]!) : null;
+    const symbol = extractSymbol(url);
 
     if (symbol) {
       if (!symbolRooms.has(symbol)) symbolRooms.set(symbol, new Set());

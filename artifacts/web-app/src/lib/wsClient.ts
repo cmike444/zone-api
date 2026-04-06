@@ -4,29 +4,27 @@ type EventHandler = (event: ZoneEvent) => void;
 
 class WsClient {
   private ws: WebSocket | null = null;
-  private symbol: string | null = null;
   private handlers = new Set<EventHandler>();
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private destroyed = false;
+  private getUrl: (() => string) | null = null;
 
-  subscribe(handler: EventHandler) {
+  subscribe(handler: EventHandler): () => void {
     this.handlers.add(handler);
-    return () => {
-      this.handlers.delete(handler);
-    };
+    return () => { this.handlers.delete(handler); };
   }
 
-  connect(symbol: string, getUrl: (sym: string) => string) {
-    if (this.symbol === symbol && this.ws && this.ws.readyState < 2) return;
+  connect(getUrl: () => string) {
+    if (this.ws && this.ws.readyState < 2 && this.getUrl === getUrl) return;
     this.disconnect();
-    this.symbol = symbol;
+    this.getUrl = getUrl;
     this.destroyed = false;
-    this._open(getUrl);
+    this._open();
   }
 
-  private _open(getUrl: (sym: string) => string) {
-    if (!this.symbol || this.destroyed) return;
-    const url = getUrl(this.symbol);
+  private _open() {
+    if (!this.getUrl || this.destroyed) return;
+    const url = this.getUrl();
     const ws = new WebSocket(url);
     this.ws = ws;
 
@@ -39,7 +37,7 @@ class WsClient {
       if (!this.destroyed) {
         this.reconnectTimer = setTimeout(() => {
           wsStatus.emit("reconnecting");
-          this._open(getUrl);
+          this._open();
         }, 3000);
       }
     };
@@ -68,7 +66,7 @@ class WsClient {
       this.ws.close();
       this.ws = null;
     }
-    this.symbol = null;
+    this.getUrl = null;
   }
 }
 

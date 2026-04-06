@@ -6,10 +6,11 @@ import type { ConfluentZone } from "@/lib/types";
 import { ZoneDirection } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-type SortKey = "symbol" | "combinedConfidence" | "proximal" | "distal";
+type SortKey = "symbol" | "combinedConfidence" | "proximal" | "distal" | "computedAt";
 type Dir = "asc" | "desc";
 
 const REFRESH_MS = 30_000;
+const STALE_MS = 5 * 60 * 1000;
 
 function fmt(n: number) {
   return n < 10 ? n.toFixed(3) : n.toFixed(2);
@@ -24,12 +25,20 @@ function SortIcon({ col, active, dir }: { col: string; active: string; dir: Dir 
   );
 }
 
+function zoneStatus(zone: ConfluentZone, activeIds: Set<number>): "active" | "stale" | "fresh" {
+  if (zone.priceInside || (zone.id != null && activeIds.has(zone.id))) return "active";
+  const age = Date.now() - zone.computedAt;
+  if (age > STALE_MS) return "stale";
+  return "fresh";
+}
+
 export function ZoneScanner() {
   const { navigateToDashboard, activeZoneIds } = useStore();
   const [zones, setZones] = useState<ConfluentZone[]>([]);
   const [loading, setLoading] = useState(true);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
   const [filterDir, setFilterDir] = useState<"all" | "supply" | "demand">("all");
+  const [filterStatus, setFilterStatus] = useState<"all" | "active" | "stale" | "fresh">("all");
   const [minConf, setMinConf] = useState(0);
   const [sortKey, setSortKey] = useState<SortKey>("combinedConfidence");
   const [sortDir, setSortDir] = useState<Dir>("desc");
@@ -41,7 +50,9 @@ export function ZoneScanner() {
         api.getTopZones(200),
         api.getActiveZones(),
       ]);
-      const activeIds = new Set(active.map((z) => z.id).filter(Boolean) as number[]);
+      const activeIds = new Set<number>(
+        active.map((z) => z.id).filter((id): id is number => id != null),
+      );
       useStore.getState().setActiveZoneIds(activeIds);
 
       const merged = new Map<number | string, ConfluentZone>();
@@ -84,6 +95,9 @@ export function ZoneScanner() {
           : z.direction === ZoneDirection.Demand,
       );
     }
+    if (filterStatus !== "all") {
+      list = list.filter((z) => zoneStatus(z, activeZoneIds) === filterStatus);
+    }
     if (minConf > 0) {
       list = list.filter((z) => z.combinedConfidence >= minConf);
     }
@@ -93,10 +107,10 @@ export function ZoneScanner() {
       const cmp =
         typeof av === "string" && typeof bv === "string"
           ? av.localeCompare(bv)
-          : (av as number) - (bv as number);
+          : ((av as number) ?? 0) - ((bv as number) ?? 0);
       return sortDir === "asc" ? cmp : -cmp;
     });
-  }, [zones, filterDir, minConf, sortKey, sortDir]);
+  }, [zones, filterDir, filterStatus, minConf, sortKey, sortDir, activeZoneIds]);
 
   const Th = ({
     label,
@@ -135,12 +149,33 @@ export function ZoneScanner() {
                   ? d === "all"
                     ? "bg-primary text-primary-foreground"
                     : d === "supply"
-                    ? "bg-supply text-white"
-                    : "bg-demand text-white"
+                    ? "bg-red-500/80 text-white"
+                    : "bg-green-600/80 text-white"
                   : "text-muted-foreground hover:text-foreground hover:bg-accent",
               )}
             >
               {d}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex items-center gap-1">
+          {(["all", "active", "stale", "fresh"] as const).map((s) => (
+            <button
+              key={s}
+              onClick={() => setFilterStatus(s)}
+              className={cn(
+                "px-2.5 py-1 text-xs rounded font-medium transition-colors capitalize",
+                filterStatus === s
+                  ? s === "active"
+                    ? "bg-primary/80 text-primary-foreground"
+                    : s === "stale"
+                    ? "bg-yellow-600/80 text-white"
+                    : "bg-accent text-foreground"
+                  : "text-muted-foreground hover:text-foreground hover:bg-accent",
+              )}
+            >
+              {s}
             </button>
           ))}
         </div>
@@ -208,8 +243,7 @@ export function ZoneScanner() {
             )}
             {filtered.map((z, i) => {
               const isSupply = z.direction === ZoneDirection.Supply;
-              const isActive =
-                z.priceInside || (z.id != null && activeZoneIds.has(z.id));
+              const status = zoneStatus(z, activeZoneIds);
 
               return (
                 <tr
@@ -217,7 +251,7 @@ export function ZoneScanner() {
                   onClick={() => navigateToDashboard(z.symbol)}
                   className={cn(
                     "border-b border-border cursor-pointer transition-colors hover:bg-accent",
-                    isActive && "active-zone-row",
+                    status === "active" && "active-zone-row",
                   )}
                 >
                   <td className="px-3 py-2.5 font-semibold text-foreground">
@@ -250,12 +284,20 @@ export function ZoneScanner() {
                     </span>
                   </td>
                   <td className="px-3 py-2.5">
-                    {isActive ? (
+                    {status === "active" && (
                       <span className="text-xs font-medium text-primary bg-primary/10 px-1.5 py-0.5 rounded">
                         ● Active
                       </span>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">Fresh</span>
+                    )}
+                    {status === "stale" && (
+                      <span className="text-xs font-medium text-yellow-400 bg-yellow-400/10 px-1.5 py-0.5 rounded">
+                        Stale
+                      </span>
+                    )}
+                    {status === "fresh" && (
+                      <span className="text-xs text-muted-foreground">
+                        Fresh
+                      </span>
                     )}
                   </td>
                 </tr>
