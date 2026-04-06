@@ -1,0 +1,121 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+
+  --color-supply: hsl(var(--supply));
+  --color-demand: hsl(var(--demand));
+
+  --color-sidebar: hsl(var(--sidebar));
+  --color-sidebar-foreground: hsl(var(--sidebar-foreground));
+  --color-sidebar-border: hsl(var(--sidebar-border));
+  --color-sidebar-primary: hsl(var(--sidebar-primary));
+  --color-sidebar-primary-foreground: hsl(var(--sidebar-primary-foreground));
+
+  --font-sans: var(--app-font-sans);
+  --font-mono: var(--app-font-mono);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+/* Dark-first — zone dashboard is always dark */
+:root {
+  --background: 215 28% 7%;
+  --foreground: 210 28% 93%;
+
+  --card: 215 21% 11%;
+  --card-foreground: 210 28% 93%;
+
+  --popover: 215 21% 11%;
+  --popover-foreground: 210 28% 93%;
+
+  --primary: 213 100% 67%;
+  --primary-foreground: 215 28% 7%;
+
+  --secondary: 215 13% 15%;
+  --secondary-foreground: 210 28% 93%;
+
+  --muted: 215 13% 15%;
+  --muted-foreground: 210 8% 58%;
+
+  --accent: 215 13% 18%;
+  --accent-foreground: 210 28% 93%;
+
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 0 0% 98%;
+
+  --border: 215 13% 15%;
+  --input: 215 13% 18%;
+  --ring: 213 100% 67%;
+
+  --supply: 0 88% 63%;
+  --demand: 141 69% 45%;
+
+  --sidebar: 215 21% 9%;
+  --sidebar-foreground: 210 28% 93%;
+  --sidebar-border: 215 13% 15%;
+  --sidebar-primary: 213 100% 67%;
+  --sidebar-primary-foreground: 215 28% 7%;
+
+  --app-font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', system-ui, sans-serif;
+  --app-font-mono: 'SF Mono', 'Fira Code', Menlo, monospace;
+  --radius: 0.375rem;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+  }
+}
+
+@layer utilities {
+  .supply-bg {
+    background-color: rgba(248, 81, 73, 0.08);
+  }
+  .demand-bg {
+    background-color: rgba(63, 185, 80, 0.08);
+  }
+  .supply-text {
+    color: hsl(var(--supply));
+  }
+  .demand-text {
+    color: hsl(var(--demand));
+  }
+  .active-zone-row {
+    background-color: rgba(88, 166, 255, 0.07);
+  }
+}

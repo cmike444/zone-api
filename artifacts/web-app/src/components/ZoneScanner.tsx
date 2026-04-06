@@ -1,0 +1,273 @@
+import { useEffect, useState, useMemo } from "react";
+import { ArrowUpDown, ArrowUp, ArrowDown, RefreshCw } from "lucide-react";
+import { api } from "@/lib/api";
+import { useStore } from "@/lib/store";
+import type { ConfluentZone } from "@/lib/types";
+import { ZoneDirection } from "@/lib/types";
+import { cn } from "@/lib/utils";
+
+type SortKey = "symbol" | "combinedConfidence" | "proximal" | "distal";
+type Dir = "asc" | "desc";
+
+const REFRESH_MS = 30_000;
+
+function fmt(n: number) {
+  return n < 10 ? n.toFixed(3) : n.toFixed(2);
+}
+
+function SortIcon({ col, active, dir }: { col: string; active: string; dir: Dir }) {
+  if (active !== col) return <ArrowUpDown className="h-3 w-3 opacity-40" />;
+  return dir === "asc" ? (
+    <ArrowUp className="h-3 w-3 text-primary" />
+  ) : (
+    <ArrowDown className="h-3 w-3 text-primary" />
+  );
+}
+
+export function ZoneScanner() {
+  const { navigateToDashboard, activeZoneIds } = useStore();
+  const [zones, setZones] = useState<ConfluentZone[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
+  const [filterDir, setFilterDir] = useState<"all" | "supply" | "demand">("all");
+  const [minConf, setMinConf] = useState(0);
+  const [sortKey, setSortKey] = useState<SortKey>("combinedConfidence");
+  const [sortDir, setSortDir] = useState<Dir>("desc");
+
+  async function load() {
+    setLoading(true);
+    try {
+      const [top, active] = await Promise.all([
+        api.getTopZones(200),
+        api.getActiveZones(),
+      ]);
+      const activeIds = new Set(active.map((z) => z.id).filter(Boolean) as number[]);
+      useStore.getState().setActiveZoneIds(activeIds);
+
+      const merged = new Map<number | string, ConfluentZone>();
+      for (const z of top) merged.set(z.id ?? `${z.proximal}-${z.distal}`, z);
+      for (const z of active) {
+        const k = z.id ?? `${z.proximal}-${z.distal}`;
+        merged.set(k, { ...merged.get(k), ...z, priceInside: true });
+      }
+      setZones(Array.from(merged.values()));
+      setLastRefresh(new Date());
+    } catch {
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    load();
+    const t = setInterval(load, REFRESH_MS);
+    return () => clearInterval(t);
+  }, []);
+
+  function toggleSort(key: SortKey) {
+    setSortKey((prev) => {
+      if (prev === key) {
+        setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+        return key;
+      }
+      setSortDir("desc");
+      return key;
+    });
+  }
+
+  const filtered = useMemo(() => {
+    let list = zones;
+    if (filterDir !== "all") {
+      list = list.filter((z) =>
+        filterDir === "supply"
+          ? z.direction === ZoneDirection.Supply
+          : z.direction === ZoneDirection.Demand,
+      );
+    }
+    if (minConf > 0) {
+      list = list.filter((z) => z.combinedConfidence >= minConf);
+    }
+    return [...list].sort((a, b) => {
+      const av = a[sortKey];
+      const bv = b[sortKey];
+      const cmp =
+        typeof av === "string" && typeof bv === "string"
+          ? av.localeCompare(bv)
+          : (av as number) - (bv as number);
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+  }, [zones, filterDir, minConf, sortKey, sortDir]);
+
+  const Th = ({
+    label,
+    col,
+    className,
+  }: {
+    label: string;
+    col: SortKey;
+    className?: string;
+  }) => (
+    <th
+      onClick={() => toggleSort(col)}
+      className={cn(
+        "text-left text-xs text-muted-foreground font-medium px-3 py-2 cursor-pointer select-none hover:text-foreground whitespace-nowrap",
+        className,
+      )}
+    >
+      <span className="inline-flex items-center gap-1">
+        {label}
+        <SortIcon col={col} active={sortKey} dir={sortDir} />
+      </span>
+    </th>
+  );
+
+  return (
+    <div className="flex flex-col flex-1 min-h-0 bg-background">
+      <div className="flex items-center gap-3 px-4 py-2 border-b border-border flex-wrap">
+        <div className="flex items-center gap-1">
+          {(["all", "supply", "demand"] as const).map((d) => (
+            <button
+              key={d}
+              onClick={() => setFilterDir(d)}
+              className={cn(
+                "px-2.5 py-1 text-xs rounded font-medium transition-colors capitalize",
+                filterDir === d
+                  ? d === "all"
+                    ? "bg-primary text-primary-foreground"
+                    : d === "supply"
+                    ? "bg-supply text-white"
+                    : "bg-demand text-white"
+                  : "text-muted-foreground hover:text-foreground hover:bg-accent",
+              )}
+            >
+              {d}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex items-center gap-2 flex-1 min-w-[12rem]">
+          <span className="text-xs text-muted-foreground whitespace-nowrap">
+            Min confidence: <strong className="text-foreground">{minConf.toFixed(1)}</strong>
+          </span>
+          <input
+            type="range"
+            min={0}
+            max={3}
+            step={0.1}
+            value={minConf}
+            onChange={(e) => setMinConf(Number(e.target.value))}
+            className="flex-1 accent-primary"
+          />
+        </div>
+
+        <div className="flex items-center gap-2 ml-auto">
+          {lastRefresh && (
+            <span className="text-xs text-muted-foreground">
+              {lastRefresh.toLocaleTimeString()}
+            </span>
+          )}
+          <button
+            onClick={load}
+            disabled={loading}
+            className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+          >
+            <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
+          </button>
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-auto">
+        <table className="w-full text-sm border-collapse">
+          <thead className="sticky top-0 bg-card border-b border-border z-10">
+            <tr>
+              <Th label="Symbol" col="symbol" />
+              <th className="text-left text-xs text-muted-foreground font-medium px-3 py-2 whitespace-nowrap">
+                Direction
+              </th>
+              <th className="text-left text-xs text-muted-foreground font-medium px-3 py-2 whitespace-nowrap">
+                Timeframes
+              </th>
+              <Th label="Proximal" col="proximal" />
+              <Th label="Distal" col="distal" />
+              <Th label="Confidence" col="combinedConfidence" className="text-right" />
+              <th className="text-left text-xs text-muted-foreground font-medium px-3 py-2 whitespace-nowrap">
+                Status
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.length === 0 && (
+              <tr>
+                <td
+                  colSpan={7}
+                  className="text-center text-muted-foreground text-sm py-12"
+                >
+                  {loading ? "Loading zones…" : "No zones match the current filters."}
+                </td>
+              </tr>
+            )}
+            {filtered.map((z, i) => {
+              const isSupply = z.direction === ZoneDirection.Supply;
+              const isActive =
+                z.priceInside || (z.id != null && activeZoneIds.has(z.id));
+
+              return (
+                <tr
+                  key={z.id ?? i}
+                  onClick={() => navigateToDashboard(z.symbol)}
+                  className={cn(
+                    "border-b border-border cursor-pointer transition-colors hover:bg-accent",
+                    isActive && "active-zone-row",
+                  )}
+                >
+                  <td className="px-3 py-2.5 font-semibold text-foreground">
+                    {z.symbol}
+                  </td>
+                  <td className="px-3 py-2.5">
+                    <span
+                      className={cn(
+                        "text-xs font-medium px-1.5 py-0.5 rounded",
+                        isSupply
+                          ? "bg-red-500/10 text-red-400"
+                          : "bg-green-500/10 text-green-400",
+                      )}
+                    >
+                      {isSupply ? "Supply" : "Demand"}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2.5 font-mono text-xs text-muted-foreground">
+                    {Array.isArray(z.timeframes) ? z.timeframes.join(", ") : "—"}
+                  </td>
+                  <td className="px-3 py-2.5 font-mono text-xs text-foreground">
+                    ${fmt(z.proximal)}
+                  </td>
+                  <td className="px-3 py-2.5 font-mono text-xs text-foreground">
+                    ${fmt(z.distal)}
+                  </td>
+                  <td className="px-3 py-2.5 text-right">
+                    <span className="font-mono text-xs text-primary">
+                      {z.combinedConfidence.toFixed(2)}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2.5">
+                    {isActive ? (
+                      <span className="text-xs font-medium text-primary bg-primary/10 px-1.5 py-0.5 rounded">
+                        ● Active
+                      </span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">Fresh</span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="px-4 py-2 border-t border-border text-xs text-muted-foreground">
+        {filtered.length} zones • refreshes every 30s
+      </div>
+    </div>
+  );
+}
