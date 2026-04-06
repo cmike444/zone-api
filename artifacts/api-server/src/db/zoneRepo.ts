@@ -238,7 +238,12 @@ export function markZoneBreached(id: number): void {
 
 export function deleteConfluentZonesBySymbol(symbol: string): void {
   const db = getDb();
-  db.prepare("DELETE FROM confluent_zones WHERE symbol = ?").run(symbol);
+  db.transaction(() => {
+    db.prepare(
+      "DELETE FROM zone_touches WHERE zone_id IN (SELECT id FROM confluent_zones WHERE symbol = ?)",
+    ).run(symbol);
+    db.prepare("DELETE FROM confluent_zones WHERE symbol = ?").run(symbol);
+  })();
 }
 
 export function getConfluentZoneById(id: number): ConfluentZone | null {

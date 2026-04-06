@@ -23,7 +23,7 @@ export function SymbolSidebar({ activeZoneSymbols }: Props) {
   }, [error]);
 
   async function handleAdd() {
-    const sym = input.trim().toUpperCase();
+    const sym = input.trim().replace(/^\/+/, "").toUpperCase();
     if (!sym) return;
     if (symbols.some((s) => s.symbol === sym)) {
       setSelectedSymbol(sym);

@@ -43,6 +43,14 @@ function symbolSeed(symbol: string): number {
 const BASE_PRICES: Record<string, number> = {
   SPY: 510, QQQ: 440, AAPL: 195, TSLA: 250, NVDA: 870,
   MSFT: 415, AMZN: 185, GOOGL: 170, META: 520, AMD: 170,
+  IWM: 200, DIA: 425, GLD: 235, SLV: 29, USO: 78,
+  ES: 5500, MES: 5500, NQ: 19200, MNQ: 19200,
+  YM: 42500, MYM: 42500, RTY: 2100, M2K: 2100,
+  GC: 2350, MGC: 2350, SI: 28, SIL: 28,
+  CL: 75, MCL: 75, NG: 3.5, RB: 2.4,
+  ZB: 118, ZN: 111, ZF: 107, ZT: 102,
+  "6E": 1.08, "6J": 0.0066, "6B": 1.26, "6C": 0.73,
+  VX: 17, HG: 4.2, PL: 980, PA: 1050,
 };
 
 function getBasePrice(symbol: string): number {
