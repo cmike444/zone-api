@@ -125,7 +125,7 @@ export function SymbolSidebar({ activeZoneSymbols }: Props) {
         )}
         {paginated.map((s) => {
           const quote = quotes[s.symbol];
-          const price = quote?.price;
+          const price = quote?.price ?? s.currentPrice;
           const isActive = activeZoneSymbols.has(s.symbol);
           const isSelected = selectedSymbol === s.symbol;
           const isLoading = loading === s.symbol;
@@ -156,9 +156,11 @@ export function SymbolSidebar({ activeZoneSymbols }: Props) {
                 {isLoading && (
                   <span className="h-3 w-3 rounded-full border-2 border-primary border-t-transparent animate-spin shrink-0" />
                 )}
-                <span className="text-xs text-primary font-mono truncate">
-                  {price != null ? `$${price < 10 ? price.toFixed(4) : price.toFixed(2)}` : "—"}
-                </span>
+                {price != null && (
+                  <span className="text-xs text-primary font-mono truncate">
+                    ${price < 10 ? price.toFixed(4) : price.toFixed(2)}
+                  </span>
+                )}
                 {s.zoneCount > 0 && (
                   <span
                     className="text-xs text-muted-foreground ml-auto shrink-0"
