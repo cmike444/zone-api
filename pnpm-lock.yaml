@@ -423,6 +423,28 @@ importers:
         specifier: 'catalog:'
         version: 3.25.76
 
+  artifacts/symbol-universe:
+    dependencies:
+      express:
+        specifier: ^5
+        version: 5.2.1
+      ws:
+        specifier: ^8.20.0
+        version: 8.20.0
+    devDependencies:
+      '@types/express':
+        specifier: ^5.0.6
+        version: 5.0.6
+      '@types/node':
+        specifier: 'catalog:'
+        version: 25.3.5
+      '@types/ws':
+        specifier: ^8.18.1
+        version: 8.18.1
+      tsx:
+        specifier: 'catalog:'
+        version: 4.21.0
+
   artifacts/web-app:
     dependencies:
       echarts:

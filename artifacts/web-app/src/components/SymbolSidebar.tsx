@@ -102,11 +102,16 @@ export function SymbolSidebar({ activeZoneSymbols }: Props) {
           const isLoading = loading === s.symbol;
 
           return (
-            <button
+            <div
               key={s.symbol}
+              role="button"
+              tabIndex={0}
               onClick={() => setSelectedSymbol(s.symbol)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") setSelectedSymbol(s.symbol);
+              }}
               className={cn(
-                "w-full flex items-center gap-2 px-3 py-2.5 text-left transition-colors group hover:bg-accent",
+                "w-full flex items-center gap-2 px-3 py-2.5 text-left transition-colors group hover:bg-accent cursor-pointer",
                 isSelected && "bg-accent",
               )}
             >
@@ -151,7 +156,7 @@ export function SymbolSidebar({ activeZoneSymbols }: Props) {
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </button>
-            </button>
+            </div>
           );
         })}
       </div>
