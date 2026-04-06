@@ -6,6 +6,8 @@ import { useStore } from "@/lib/store";
 import { api, getWsUrl } from "@/lib/api";
 import { wsClient } from "@/lib/wsClient";
 import type { ZoneEvent } from "@/lib/types";
+import { ZoneDirection } from "@/lib/types";
+import { useToast } from "@/hooks/use-toast";
 import Dashboard from "@/pages/Dashboard";
 import Scanner from "@/pages/Scanner";
 
@@ -13,6 +15,7 @@ const queryClient = new QueryClient();
 
 function AppContent() {
   const { view, setSymbols, setApiConnected, updateQuote } = useStore();
+  const { toast } = useToast();
 
   useEffect(() => {
     let interval: ReturnType<typeof setInterval>;
@@ -50,10 +53,38 @@ function AppContent() {
     const unsub = wsClient.subscribe((event: ZoneEvent) => {
       if (event.type === "price") {
         updateQuote(event.symbol, event.price, event.bid, event.ask);
+        return;
+      }
+      if (event.type === "zone_entered") {
+        toast({
+          title: `Zone entered — ${event.symbol}`,
+          description: `Price $${event.price.toFixed(2)} entered ${
+            event.zone.direction === ZoneDirection.Supply ? "supply" : "demand"
+          } zone $${event.zone.proximal.toFixed(2)} – $${event.zone.distal.toFixed(2)}`,
+        });
+        return;
+      }
+      if (event.type === "zone_exited") {
+        toast({
+          title: `Zone exited — ${event.symbol}`,
+          description: `Price $${event.price.toFixed(2)} left ${
+            event.zone.direction === ZoneDirection.Supply ? "supply" : "demand"
+          } zone $${event.zone.proximal.toFixed(2)} – $${event.zone.distal.toFixed(2)}`,
+        });
+        return;
+      }
+      if (event.type === "zone_breached") {
+        toast({
+          title: `Zone breached — ${event.symbol}`,
+          description: `Price $${event.price.toFixed(2)} broke through ${
+            event.zone.direction === ZoneDirection.Supply ? "supply" : "demand"
+          } zone at $${event.zone.proximal.toFixed(2)}`,
+          variant: "destructive",
+        });
       }
     });
     return unsub;
-  }, [updateQuote]);
+  }, [updateQuote, toast]);
 
   return (
     <AppShell>
