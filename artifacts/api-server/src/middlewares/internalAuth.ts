@@ -1,4 +1,4 @@
-import { createHash, timingSafeEqual } from "node:crypto";
+import { timingSafeEqual } from "node:crypto";
 import type { Request, Response, NextFunction } from "express";
 import type { IncomingMessage } from "node:http";
 import type { Socket } from "node:net";
@@ -73,7 +73,6 @@ export function requireWsToken(
   return false;
 }
 
-// Hash of the token for safe comparison; exported so universeClient can use raw env directly
 export function getInternalAuthHeaders(): Record<string, string> {
   const token = process.env["INTERNAL_API_TOKEN"];
   if (!token) throw new Error("INTERNAL_API_TOKEN is not set");

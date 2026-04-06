@@ -9,6 +9,7 @@ import {
   upsertConfluentZone,
   deleteConfluentZonesBySymbol,
   getConfluentZones,
+  markZonesStaleBySymbolTimeframe,
 } from "../db/zoneRepo.js";
 import { logZoneTouch } from "../db/eventLogRepo.js";
 import { broadcastEvent } from "../websocket/server.js";
@@ -152,6 +153,8 @@ export async function detectZones(symbol: string): Promise<void> {
           sdkZoneToInternal(z, symbol, tf, ZoneDirection.Demand),
         ),
       ];
+
+      markZonesStaleBySymbolTimeframe(symbol, tf);
 
       for (const z of tfZones) {
         const id = upsertZone(z);

@@ -72,6 +72,16 @@ function rowToConfluentZone(row: ConfluentZoneRow): ConfluentZone {
   };
 }
 
+export function markZonesStaleBySymbolTimeframe(
+  symbol: string,
+  timeframe: string,
+): void {
+  const db = getDb();
+  db.prepare(
+    "UPDATE zones SET is_fresh = 0 WHERE symbol = ? AND timeframe = ? AND is_fresh = 1",
+  ).run(symbol, timeframe);
+}
+
 export function upsertZone(zone: Zone): number {
   const db = getDb();
   const stmt = db.prepare(`
@@ -81,7 +91,13 @@ export function upsertZone(zone: Zone): number {
     VALUES
       (@symbol, @timeframe, @direction, @type, @proximal, @distal, @confidence,
        @entry_price, @stop_price, @target_price, @start_ts, @end_ts, @detected_at, @is_fresh)
-    ON CONFLICT DO NOTHING
+    ON CONFLICT(symbol, timeframe, direction, start_ts) DO UPDATE SET
+      proximal    = excluded.proximal,
+      distal      = excluded.distal,
+      confidence  = excluded.confidence,
+      end_ts      = excluded.end_ts,
+      detected_at = excluded.detected_at,
+      is_fresh    = 1
   `);
   const result = stmt.run({
     symbol: zone.symbol,
@@ -210,9 +226,14 @@ export function markZoneBreached(id: number): void {
   db.prepare(
     "UPDATE confluent_zones SET price_inside = 0 WHERE id = ?",
   ).run(id);
-  db.prepare(
-    "UPDATE zones SET is_fresh = 0 WHERE symbol = (SELECT symbol FROM confluent_zones WHERE id = ?)",
-  ).run(id);
+  db.prepare(`
+    UPDATE zones SET is_fresh = 0
+    WHERE symbol = (SELECT symbol FROM confluent_zones WHERE id = ?)
+      AND direction = (SELECT direction FROM confluent_zones WHERE id = ?)
+      AND is_fresh = 1
+      AND MIN(proximal, distal) <= (SELECT MAX(proximal, distal) FROM confluent_zones WHERE id = ?)
+      AND MAX(proximal, distal) >= (SELECT MIN(proximal, distal) FROM confluent_zones WHERE id = ?)
+  `).run(id, id, id, id);
 }
 
 export function deleteConfluentZonesBySymbol(symbol: string): void {

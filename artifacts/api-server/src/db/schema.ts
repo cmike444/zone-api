@@ -43,7 +43,8 @@ export function initDb(): Database.Database {
       start_ts INTEGER NOT NULL,
       end_ts INTEGER NOT NULL,
       detected_at INTEGER NOT NULL,
-      is_fresh INTEGER DEFAULT 1
+      is_fresh INTEGER DEFAULT 1,
+      UNIQUE (symbol, timeframe, direction, start_ts)
     );
 
     CREATE INDEX IF NOT EXISTS idx_zones_symbol ON zones(symbol, timeframe, is_fresh);
