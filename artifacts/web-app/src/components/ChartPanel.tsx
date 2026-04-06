@@ -5,6 +5,7 @@ import { api } from "@/lib/api";
 import { wsClient } from "@/lib/wsClient";
 import type { Candle, ConfluentZone, ZoneEvent } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { useStore } from "@/lib/store";
 
 const TIMEFRAMES = ["1d", "60m", "15m", "5m", "1m"] as const;
 type TF = (typeof TIMEFRAMES)[number];
@@ -156,6 +157,7 @@ function buildOptions(
 }
 
 export function ChartPanel({ symbol }: Props) {
+  const { setSymbolZoneCount } = useStore();
   const chartRef = useRef<HTMLDivElement>(null);
   const echartsRef = useRef<ECharts | null>(null);
   const candlesRef = useRef<Candle[]>([]);
@@ -207,6 +209,7 @@ export function ChartPanel({ symbol }: Props) {
         if (cancelled) return;
         candlesRef.current = candles;
         zonesRef.current = new Map(zones.map((z) => [z.id, z]));
+        setSymbolZoneCount(symbol, zones.length);
         renderChart();
       } catch (e) {
         if (!cancelled)

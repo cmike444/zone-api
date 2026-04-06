@@ -140,41 +140,37 @@ export function SymbolSidebar({ activeZoneSymbols }: Props) {
                 if (e.key === "Enter" || e.key === " ") setSelectedSymbol(s.symbol);
               }}
               className={cn(
-                "w-full flex items-center gap-2 px-3 py-2.5 text-left transition-colors group hover:bg-accent cursor-pointer",
+                "w-full flex items-center gap-2 px-3 py-1.5 text-left transition-colors group hover:bg-accent cursor-pointer",
                 isSelected && "bg-accent",
               )}
             >
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-sm font-semibold text-foreground">
-                    {s.symbol}
+              <div className="flex-1 min-w-0 flex items-center gap-1.5">
+                <span className="text-sm font-semibold text-foreground shrink-0">
+                  {s.symbol}
+                </span>
+                {isActive && (
+                  <span title="Price is inside an active zone">
+                    <Zap className="h-3 w-3 text-amber-400 shrink-0" />
                   </span>
-                  {isActive && (
-                    <span title="Price is inside an active zone">
-                      <Zap className="h-3 w-3 text-amber-400 shrink-0" />
-                    </span>
-                  )}
-                  {isLoading && (
-                    <span className="h-3 w-3 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-                  )}
-                </div>
-                <div className="flex items-center justify-between mt-0.5">
-                  <span className="text-xs text-primary font-mono">
-                    {price != null ? `$${price < 10 ? price.toFixed(4) : price.toFixed(2)}` : "—"}
+                )}
+                {isLoading && (
+                  <span className="h-3 w-3 rounded-full border-2 border-primary border-t-transparent animate-spin shrink-0" />
+                )}
+                <span className="text-xs text-primary font-mono truncate">
+                  {price != null ? `$${price < 10 ? price.toFixed(4) : price.toFixed(2)}` : "—"}
+                </span>
+                {s.zoneCount > 0 && (
+                  <span
+                    className="text-xs text-muted-foreground ml-auto shrink-0"
+                    title={`${s.zoneCount} active zones`}
+                  >
+                    {s.zoneCount}z
                   </span>
-                  {s.zoneCount > 0 && (
-                    <span
-                      className="text-xs text-muted-foreground"
-                      title={`${s.zoneCount} active zones`}
-                    >
-                      {s.zoneCount} zones
-                    </span>
-                  )}
-                </div>
+                )}
               </div>
               <button
                 onClick={(e) => handleRemove(s.symbol, e)}
-                className="opacity-0 group-hover:opacity-100 p-0.5 text-muted-foreground hover:text-destructive transition-all"
+                className="opacity-0 group-hover:opacity-100 p-0.5 text-muted-foreground hover:text-destructive transition-all shrink-0"
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </button>

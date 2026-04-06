@@ -9,7 +9,7 @@ type SortKey = "symbol" | "combinedConfidence" | "proximalLine" | "distalLine" |
 type Dir = "asc" | "desc";
 
 const REFRESH_MS = 30_000;
-const STALE_MS = 5 * 60 * 1000;
+const STALE_MS = 65 * 60 * 1000;
 
 function fmt(n: number) {
   return n < 10 ? n.toFixed(3) : n.toFixed(2);
@@ -37,13 +37,15 @@ export function ZoneScanner() {
   const [loading, setLoading] = useState(true);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
   const [filterDir, setFilterDir] = useState<"all" | "supply" | "demand">("all");
-  const [filterStatus, setFilterStatus] = useState<"all" | "active" | "stale" | "fresh">("all");
+  const [filterStatus, setFilterStatus] = useState<"all" | "active" | "stale" | "fresh">("fresh");
   const [minConf, setMinConf] = useState(0.6);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("combinedConfidence");
   const [sortDir, setSortDir] = useState<Dir>("desc");
 
   async function load() {
     setLoading(true);
+    setLoadError(null);
     try {
       const [top, active] = await Promise.all([
         api.getTopZones(200),
@@ -59,7 +61,8 @@ export function ZoneScanner() {
       }
       setZones(Array.from(merged.values()));
       setLastRefresh(new Date());
-    } catch {
+    } catch (e) {
+      setLoadError(e instanceof Error ? e.message : "Failed to load zones");
     } finally {
       setLoading(false);
     }
@@ -223,7 +226,14 @@ export function ZoneScanner() {
             </tr>
           </thead>
           <tbody>
-            {filtered.length === 0 && (
+            {loadError && (
+              <tr>
+                <td colSpan={7} className="text-center text-destructive text-sm py-12">
+                  {loadError}
+                </td>
+              </tr>
+            )}
+            {!loadError && filtered.length === 0 && (
               <tr>
                 <td
                   colSpan={7}

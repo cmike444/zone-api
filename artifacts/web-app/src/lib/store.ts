@@ -29,6 +29,7 @@ interface AppState {
   markZoneInactive: (id: number) => void;
   setApiConnected: (ok: boolean) => void;
   navigateToDashboard: (symbol: string) => void;
+  setSymbolZoneCount: (symbol: string, count: number) => void;
 }
 
 export const useStore = create<AppState>((set) => ({
@@ -93,6 +94,13 @@ export const useStore = create<AppState>((set) => ({
 
   navigateToDashboard: (symbol) =>
     set({ view: "dashboard", selectedSymbol: symbol }),
+
+  setSymbolZoneCount: (symbol, count) =>
+    set((state) => ({
+      symbols: state.symbols.map((s) =>
+        s.symbol === symbol ? { ...s, zoneCount: count } : s,
+      ),
+    })),
 }));
 
 export function hasActiveZoneForSymbol(
