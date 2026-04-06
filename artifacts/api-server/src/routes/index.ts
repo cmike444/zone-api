@@ -5,6 +5,7 @@ import symbolsRouter from "./symbols.js";
 import zonesRouter from "./zones.js";
 import scanRouter from "./scan.js";
 import chartRouter from "./chart.js";
+import priceRouter from "./price.js";
 
 const router: IRouter = Router();
 
@@ -16,5 +17,6 @@ router.use("/symbols", symbolsRouter);
 router.use("/zones", zonesRouter);
 router.use("/scan", scanRouter);
 router.use("/chart", chartRouter);
+router.use("/price", priceRouter);
 
 export default router;
