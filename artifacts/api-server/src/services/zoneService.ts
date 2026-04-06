@@ -3,6 +3,7 @@ import {
   filterFreshZones,
 } from "@cmike444/supply-and-demand-zones";
 import { fetchCandles } from "./universeClient.js";
+import { getCurrentPrice } from "./priceService.js";
 import {
   upsertZone,
   upsertConfluentZone,
@@ -39,6 +40,33 @@ function getRefreshIntervalMs(): number {
 
 function sdkDirectionToString(dir: number): ZoneDirection {
   return dir === ZONE_DIRECTION.SUPPLY ? "supply" : "demand";
+}
+
+type SdkCandle = { timestamp: number; open: number; high: number; low: number; close: number };
+
+function computeIsFresh(
+  sdkZone: Record<string, unknown>,
+  sdkCandles: SdkCandle[],
+): boolean {
+  const proximalLine = sdkZone["proximalLine"] as number;
+  const endTimestamp = sdkZone["endTimestamp"] as number;
+  const isSupply = (sdkZone["direction"] as number) === ZONE_DIRECTION.SUPPLY;
+  const postCandles = sdkCandles.filter((c) => c.timestamp > endTimestamp);
+
+  if (isSupply) {
+    if (postCandles.some((c) => c.high >= proximalLine)) return false;
+    if (postCandles.length === 0) {
+      const last = sdkCandles[sdkCandles.length - 1];
+      if (last && last.close >= proximalLine) return false;
+    }
+  } else {
+    if (postCandles.some((c) => c.low <= proximalLine)) return false;
+    if (postCandles.length === 0) {
+      const last = sdkCandles[sdkCandles.length - 1];
+      if (last && last.close <= proximalLine) return false;
+    }
+  }
+  return true;
 }
 
 function sdkTypeToPattern(type: number): ZonePattern {
@@ -176,18 +204,26 @@ export async function detectZones(symbol: string): Promise<void> {
       }));
 
       const identified = identifyZones(sdkCandles);
-      const fresh = filterFreshZones(
+      const filtered = filterFreshZones(
         identified.supplyZones ?? [],
         identified.demandZones ?? [],
       );
 
+      const livePrice = getCurrentPrice(symbol);
+
       const tfZones: Zone[] = [
-        ...(fresh.supplyZones ?? []).map((z) =>
-          sdkZoneToInternal(z as unknown as Record<string, unknown>, symbol, tf),
-        ),
-        ...(fresh.demandZones ?? []).map((z) =>
-          sdkZoneToInternal(z as unknown as Record<string, unknown>, symbol, tf),
-        ),
+        ...(filtered.supplyZones ?? [])
+          .filter((z) => computeIsFresh(z as unknown as Record<string, unknown>, sdkCandles))
+          .map((z) =>
+            sdkZoneToInternal(z as unknown as Record<string, unknown>, symbol, tf),
+          )
+          .filter((z) => livePrice === undefined || livePrice < z.proximalLine),
+        ...(filtered.demandZones ?? [])
+          .filter((z) => computeIsFresh(z as unknown as Record<string, unknown>, sdkCandles))
+          .map((z) =>
+            sdkZoneToInternal(z as unknown as Record<string, unknown>, symbol, tf),
+          )
+          .filter((z) => livePrice === undefined || livePrice > z.proximalLine),
       ];
 
       markZonesStaleBySymbolTimeframe(symbol, tf);

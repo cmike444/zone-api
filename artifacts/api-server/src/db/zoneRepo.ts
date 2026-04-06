@@ -100,7 +100,7 @@ export function upsertZone(zone: Zone): number {
       confidence    = excluded.confidence,
       end_timestamp = excluded.end_timestamp,
       detected_at   = excluded.detected_at,
-      is_fresh      = 1
+      is_fresh      = excluded.is_fresh
   `);
   const result = stmt.run({
     symbol: zone.symbol,

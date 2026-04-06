@@ -5,6 +5,7 @@ import {
   getTopZones,
   getActiveZones,
 } from "../db/zoneRepo.js";
+import { getCurrentPrice } from "../services/priceService.js";
 import type { ZoneDirection } from "../types.js";
 
 const router = Router();
@@ -32,7 +33,13 @@ router.get("/:symbol/confluent", (req, res) => {
     res.status(400).json({ error: "symbol is required" });
     return;
   }
-  const zones = getConfluentZones(symbol);
+  const livePrice = getCurrentPrice(symbol);
+  const zones = getConfluentZones(symbol).filter((z) => {
+    if (livePrice === undefined) return true;
+    return z.direction === "supply"
+      ? livePrice < z.proximalLine
+      : livePrice > z.proximalLine;
+  });
   res.json(zones);
 });
 
