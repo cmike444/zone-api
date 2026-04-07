@@ -56,11 +56,13 @@ function buildMarkAreaData(zones: Zone[], candles: Candle[], tf: Timeframe) {
   });
 }
 
-const priceFormatter = (v: number) => {
-  if (v >= 10000) return `$${(v / 1000).toFixed(1)}k`;
-  if (v >= 100) return `$${v.toFixed(0)}`;
-  if (v >= 10) return `$${v.toFixed(2)}`;
-  return `$${v.toFixed(3)}`;
+const priceFormatter = (v: unknown) => {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return "";
+  if (n >= 10000) return `$${(n / 1000).toFixed(1)}k`;
+  if (n >= 100) return `$${n.toFixed(0)}`;
+  if (n >= 10) return `$${n.toFixed(2)}`;
+  return `$${n.toFixed(3)}`;
 };
 
 function calcYBounds(candles: Candle[], startPct: number, endPct: number) {
