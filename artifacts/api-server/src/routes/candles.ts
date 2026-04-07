@@ -12,7 +12,7 @@ router.get("/:symbol/:timeframe", async (req, res) => {
     return;
   }
 
-  const ALLOWED_TFS = new Set(["1d", "60m", "15m", "5m", "1m"]);
+  const ALLOWED_TFS = new Set(["1d", "1w", "1M", "3M", "6M", "60m", "15m", "5m", "1m"]);
   if (!ALLOWED_TFS.has(timeframe)) {
     res.status(400).json({ error: `Unsupported timeframe: ${timeframe}. Allowed: ${[...ALLOWED_TFS].join(", ")}` });
     return;

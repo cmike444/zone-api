@@ -65,6 +65,10 @@ const TF_MS: Record<string, number> = {
   "15m": 900_000,
   "60m": 3_600_000,
   "1d": 86_400_000,
+  "1w": 604_800_000,
+  "1M": 2_592_000_000,
+  "3M": 7_776_000_000,
+  "6M": 15_552_000_000,
 };
 
 const TF_COUNT: Record<string, number> = {
@@ -73,6 +77,10 @@ const TF_COUNT: Record<string, number> = {
   "15m": 200,
   "60m": 160,
   "1d": 252,
+  "1w": 104,
+  "1M": 36,
+  "3M": 24,
+  "6M": 16,
 };
 
 const TF_VOL: Record<string, number> = {
@@ -81,6 +89,10 @@ const TF_VOL: Record<string, number> = {
   "15m": 0.004,
   "60m": 0.007,
   "1d": 0.015,
+  "1w": 0.03,
+  "1M": 0.06,
+  "3M": 0.1,
+  "6M": 0.15,
 };
 
 interface Candle {

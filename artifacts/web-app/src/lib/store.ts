@@ -3,7 +3,7 @@ import type { ConfluentZone, MonitoredSymbol } from "./types";
 
 export type View = "dashboard" | "scanner" | "settings";
 
-export const TIMEFRAMES = ["1m", "5m", "15m", "60m", "1d"] as const;
+export const TIMEFRAMES = ["1d", "1w", "1M", "3M", "6M", "60m", "15m", "5m", "1m"] as const;
 export type Timeframe = (typeof TIMEFRAMES)[number];
 
 export interface AppSettings {

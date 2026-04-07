@@ -15,7 +15,12 @@ const DEFAULT_VISIBLE_CANDLES = 120;
 
 function fmtDate(ts: number, tf: Timeframe): string {
   const d = new Date(ts);
-  if (tf === "1d") return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  if (tf === "1M" || tf === "3M" || tf === "6M") {
+    return d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+  }
+  if (tf === "1w" || tf === "1d") {
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  }
   return d.toLocaleString("en-US", {
     month: "short",
     day: "numeric",
