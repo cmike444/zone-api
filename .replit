@@ -48,6 +48,6 @@ timeoutMs = 20000
 [userenv]
 
 [userenv.shared]
-SYMBOL_UNIVERSE_URL = "https://symbol-universe.replit.app/api"
+SYMBOL_UNIVERSE_URL = "https://symbol-universe.replit.app"
 ZONE_REFRESH_INTERVAL_MINUTES = "60"
-CANDLE_UNIVERSE_URL = "http://localhost:3005"
+CANDLE_UNIVERSE_URL = "https://symbol-universe.replit.app"

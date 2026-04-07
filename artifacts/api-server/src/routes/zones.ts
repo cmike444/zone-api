@@ -6,6 +6,7 @@ import {
   getActiveZones,
 } from "../db/zoneRepo.js";
 import { getCurrentPrice } from "../services/priceService.js";
+import { detectZones } from "../services/zoneService.js";
 import type { ZoneDirection } from "../types.js";
 
 const router = Router();
@@ -25,6 +26,22 @@ router.get("/top", (req, res) => {
 router.get("/active", (_req, res) => {
   const zones = getActiveZones();
   res.json(zones);
+});
+
+router.post("/:symbol/refresh", async (req, res) => {
+  const symbol = req.params["symbol"]?.toUpperCase();
+  if (!symbol) {
+    res.status(400).json({ error: "symbol is required" });
+    return;
+  }
+  try {
+    await detectZones(symbol);
+    const zones = getZonesBySymbol(symbol);
+    res.json({ ok: true, count: zones.length });
+  } catch (err) {
+    req.log.error({ err, symbol }, "zones: refresh failed");
+    res.status(500).json({ error: "Failed to refresh zones" });
+  }
 });
 
 router.get("/:symbol/confluent", (req, res) => {

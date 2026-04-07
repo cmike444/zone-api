@@ -7,11 +7,12 @@ import { wsClient } from "@/lib/wsClient";
 import type { ZoneEvent } from "@/lib/types";
 import Dashboard from "@/pages/Dashboard";
 import Scanner from "@/pages/Scanner";
+import Settings from "@/pages/Settings";
 
 const queryClient = new QueryClient();
 
 function AppContent() {
-  const { view, setSymbols, setApiConnected, updateQuote } = useStore();
+  const { view, setSymbols, setApiConnected, updateQuote, selectedSymbol, setSelectedSymbol } = useStore();
 
   useEffect(() => {
     let interval: ReturnType<typeof setInterval>;
@@ -29,6 +30,22 @@ function AppContent() {
       try {
         const syms = await api.listSymbols();
         setSymbols(syms);
+
+        if (syms.length > 0) {
+          const currentSelected = useStore.getState().selectedSymbol;
+          if (!currentSelected) {
+            const spy = syms.find((s) => s.symbol === "SPY");
+            setSelectedSymbol(spy ? spy.symbol : syms[0]!.symbol);
+          }
+        }
+
+        for (const sym of syms) {
+          if (sym.currentPrice == null) {
+            api.getPrice(sym.symbol)
+              .then((r) => updateQuote(r.symbol, r.price))
+              .catch(() => {});
+          }
+        }
       } catch {
       }
     }
@@ -38,7 +55,7 @@ function AppContent() {
     interval = setInterval(ping, 15_000);
 
     return () => clearInterval(interval);
-  }, [setSymbols, setApiConnected]);
+  }, [setSymbols, setApiConnected, updateQuote, setSelectedSymbol]);
 
   useEffect(() => {
     wsClient.connect(getWsUrl);
@@ -56,7 +73,13 @@ function AppContent() {
 
   return (
     <AppShell>
-      {view === "dashboard" ? <Dashboard /> : <Scanner />}
+      {view === "dashboard" ? (
+        <Dashboard />
+      ) : view === "scanner" ? (
+        <Scanner />
+      ) : (
+        <Settings />
+      )}
     </AppShell>
   );
 }

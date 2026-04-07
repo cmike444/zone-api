@@ -61,8 +61,11 @@ export const api = {
 
   getZones: (symbol: string, timeframe?: string) => {
     const params = timeframe ? `?timeframe=${timeframe}` : "";
-    return apiFetch<import("./types").ConfluentZone[]>(`/zones/${symbol}${params}`);
+    return apiFetch<import("./types").Zone[]>(`/zones/${symbol}${params}`);
   },
+
+  refreshZones: (symbol: string) =>
+    apiFetch<{ ok: boolean; count: number }>(`/zones/${symbol}/refresh`, { method: "POST" }),
 
   getCandles: (symbol: string, timeframe: string) =>
     apiFetch<import("./types").Candle[]>(`/candles/${symbol}/${timeframe}`),

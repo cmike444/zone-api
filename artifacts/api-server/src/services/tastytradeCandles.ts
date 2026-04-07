@@ -20,6 +20,8 @@ const TF_CONFIG: Record<
   string,
   { period: number; type: CandleType; daysBack: number; cacheTtlMs: number }
 > = {
+  "1m":  { period: 1,  type: CandleType.Minute, daysBack: 2,   cacheTtlMs: 30_000 },
+  "5m":  { period: 5,  type: CandleType.Minute, daysBack: 5,   cacheTtlMs: 2 * 60_000 },
   "15m": { period: 15, type: CandleType.Minute, daysBack: 10,  cacheTtlMs: 5 * 60_000 },
   "60m": { period: 60, type: CandleType.Minute, daysBack: 30,  cacheTtlMs: 5 * 60_000 },
   "1d":  { period: 1,  type: CandleType.Day,    daysBack: 365, cacheTtlMs: 15 * 60_000 },

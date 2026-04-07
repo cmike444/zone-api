@@ -3,18 +3,15 @@ import * as echarts from "echarts";
 import type { ECharts } from "echarts";
 import { api } from "@/lib/api";
 import { wsClient } from "@/lib/wsClient";
-import type { Candle, ConfluentZone, ZoneEvent } from "@/lib/types";
+import type { Candle, Zone, ZoneEvent } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { useStore } from "@/lib/store";
-
-const TIMEFRAMES = ["1d", "60m", "15m", "5m", "1m"] as const;
-type TF = (typeof TIMEFRAMES)[number];
+import { useStore, TIMEFRAMES, type Timeframe } from "@/lib/store";
 
 interface Props {
   symbol: string;
 }
 
-function fmtDate(ts: number, tf: TF): string {
+function fmtDate(ts: number, tf: Timeframe): string {
   const d = new Date(ts);
   if (tf === "1d") return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   return d.toLocaleString("en-US", {
@@ -29,7 +26,7 @@ function fmtDate(ts: number, tf: TF): string {
 function findNearestCandleLabel(
   ts: number,
   candles: Candle[],
-  tf: TF,
+  tf: Timeframe,
 ): string | undefined {
   if (candles.length === 0) return undefined;
   let best = candles[0]!;
@@ -44,7 +41,7 @@ function findNearestCandleLabel(
   return fmtDate(best.timestamp, tf);
 }
 
-function buildZoneMarkArea(zone: ConfluentZone, candles: Candle[], tf: TF) {
+function buildZoneMarkArea(zone: Zone, candles: Candle[], tf: Timeframe) {
   const isSupply = zone.direction === "supply";
   const xStart =
     zone.startTimestamp != null
@@ -86,8 +83,8 @@ function buildYBounds(candles: Candle[]): { yMin: number; yMax: number } {
 function buildOptions(
   symbol: string,
   candles: Candle[],
-  zones: ConfluentZone[],
-  tf: TF,
+  zones: Zone[],
+  tf: Timeframe,
 ) {
   const xs = candles.map((c) => fmtDate(c.timestamp, tf));
   const ys = candles.map((c) => [c.open, c.close, c.low, c.high]);
@@ -156,12 +153,12 @@ function buildOptions(
 }
 
 export function ChartPanel({ symbol }: Props) {
-  const { setSymbolZoneCount } = useStore();
+  const { setSymbolZoneCount, chartTimeframe, setChartTimeframe } = useStore();
+  const timeframe = chartTimeframe;
   const chartRef = useRef<HTMLDivElement>(null);
   const echartsRef = useRef<ECharts | null>(null);
   const candlesRef = useRef<Candle[]>([]);
-  const zonesRef = useRef<Map<number, ConfluentZone>>(new Map());
-  const [timeframe, setTimeframe] = useState<TF>("60m");
+  const zonesRef = useRef<Zone[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const currentTfRef = useRef(timeframe);
@@ -169,12 +166,21 @@ export function ChartPanel({ symbol }: Props) {
 
   const renderChart = useCallback(() => {
     if (!echartsRef.current) return;
-    const zones = Array.from(zonesRef.current.values());
     echartsRef.current.setOption(
-      buildOptions(symbol, candlesRef.current, zones, currentTfRef.current),
+      buildOptions(symbol, candlesRef.current, zonesRef.current, currentTfRef.current),
       true,
     );
   }, [symbol]);
+
+  const reloadZones = useCallback(async (sym: string, tf: Timeframe) => {
+    try {
+      const zones = await api.getZones(sym, tf);
+      if (currentTfRef.current !== tf) return;
+      zonesRef.current = zones;
+      setSymbolZoneCount(sym, zones.length);
+      renderChart();
+    } catch {}
+  }, [renderChart, setSymbolZoneCount]);
 
   useEffect(() => {
     const el = chartRef.current;
@@ -197,17 +203,17 @@ export function ChartPanel({ symbol }: Props) {
     setLoading(true);
     setError(null);
     candlesRef.current = [];
-    zonesRef.current = new Map();
+    zonesRef.current = [];
 
     async function load() {
       try {
         const [candles, zones] = await Promise.all([
           api.getCandles(symbol, timeframe),
-          api.getConfluentZones(symbol),
+          api.getZones(symbol, timeframe),
         ]);
         if (cancelled) return;
         candlesRef.current = candles;
-        zonesRef.current = new Map(zones.map((z) => [z.id, z]));
+        zonesRef.current = zones;
         setSymbolZoneCount(symbol, zones.length);
         renderChart();
       } catch (e) {
@@ -222,7 +228,7 @@ export function ChartPanel({ symbol }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [symbol, timeframe, renderChart]);
+  }, [symbol, timeframe, renderChart, setSymbolZoneCount]);
 
   useEffect(() => {
     const unsub = wsClient.subscribe((event: ZoneEvent) => {
@@ -237,21 +243,15 @@ export function ChartPanel({ symbol }: Props) {
         }
         renderChart();
       } else if (
-        (event.type === "zone_created" || event.type === "zone_updated") &&
+        (event.type === "zone_created" || event.type === "zone_updated" ||
+         event.type === "zone_expired" || event.type === "zone_breached") &&
         event.symbol === symbol
       ) {
-        zonesRef.current.set(event.zone.id, event.zone);
-        renderChart();
-      } else if (event.type === "zone_expired" && event.symbol === symbol) {
-        zonesRef.current.delete(event.zone.id);
-        renderChart();
-      } else if (event.type === "zone_breached" && event.symbol === symbol) {
-        zonesRef.current.delete(event.zone.id);
-        renderChart();
+        void reloadZones(symbol, currentTfRef.current);
       }
     });
     return unsub;
-  }, [symbol, timeframe, renderChart]);
+  }, [symbol, timeframe, renderChart, reloadZones]);
 
   return (
     <div className="flex flex-col flex-1 min-h-0 bg-background">
@@ -259,7 +259,7 @@ export function ChartPanel({ symbol }: Props) {
         {TIMEFRAMES.map((tf) => (
           <button
             key={tf}
-            onClick={() => setTimeframe(tf)}
+            onClick={() => setChartTimeframe(tf)}
             className={cn(
               "px-2.5 py-1 text-xs rounded font-medium transition-colors",
               tf === timeframe

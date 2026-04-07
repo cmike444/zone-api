@@ -221,17 +221,27 @@ export async function detectZones(symbol: string): Promise<void> {
         identified.demandZones ?? [],
       );
 
+      logger.debug(
+        {
+          symbol,
+          tf,
+          rawSupply: (identified.supplyZones ?? []).length,
+          rawDemand: (identified.demandZones ?? []).length,
+          freshSupply: (filtered.supplyZones ?? []).length,
+          freshDemand: (filtered.demandZones ?? []).length,
+        },
+        "zoneService: sdk zone counts",
+      );
+
       const livePrice = getCurrentPrice(symbol);
 
       const tfZones: Zone[] = [
         ...(filtered.supplyZones ?? [])
-          .filter((z) => computeIsFresh(z as unknown as Record<string, unknown>, sdkCandles))
           .map((z) =>
             sdkZoneToInternal(z as unknown as Record<string, unknown>, symbol, tf),
           )
           .filter((z) => livePrice === undefined || livePrice < z.proximalLine),
         ...(filtered.demandZones ?? [])
-          .filter((z) => computeIsFresh(z as unknown as Record<string, unknown>, sdkCandles))
           .map((z) =>
             sdkZoneToInternal(z as unknown as Record<string, unknown>, symbol, tf),
           )

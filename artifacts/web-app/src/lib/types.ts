@@ -1,3 +1,22 @@
+export interface Zone {
+  id: number;
+  symbol: string;
+  timeframe: string;
+  direction: ZoneDirection;
+  pattern: ZonePattern;
+  proximalLine: number;
+  distalLine: number;
+  confidence: number;
+  rrScore?: number;
+  entryPrice?: number;
+  stopPrice?: number;
+  targetPrice?: number;
+  startTimestamp: number;
+  endTimestamp: number;
+  detectedAt: number;
+  isFresh: boolean;
+}
+
 export interface Candle {
   timestamp: number;
   open: number;

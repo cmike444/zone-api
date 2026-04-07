@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { BarChart2, Scan, Wifi, WifiOff, Loader2 } from "lucide-react";
+import { BarChart2, Scan, Wifi, WifiOff, Loader2, Settings } from "lucide-react";
 import { useStore, type View } from "@/lib/store";
 import { wsStatus, type StatusType } from "@/lib/wsClient";
 import { cn } from "@/lib/utils";
@@ -80,6 +80,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             {statusIcon}
             <span className="capitalize">{wsState === "idle" ? "—" : wsState}</span>
           </span>
+          <button
+            onClick={() => setView("settings")}
+            className={cn(
+              "p-1.5 rounded transition-colors",
+              view === "settings"
+                ? "bg-accent text-foreground"
+                : "text-muted-foreground hover:text-foreground hover:bg-accent/50",
+            )}
+            title="Settings"
+          >
+            <Settings className="h-3.5 w-3.5" />
+          </button>
         </div>
       </header>
 

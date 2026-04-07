@@ -1,7 +1,37 @@
 import { create } from "zustand";
 import type { ConfluentZone, MonitoredSymbol } from "./types";
 
-export type View = "dashboard" | "scanner";
+export type View = "dashboard" | "scanner" | "settings";
+
+export const TIMEFRAMES = ["1m", "5m", "15m", "60m", "1d"] as const;
+export type Timeframe = (typeof TIMEFRAMES)[number];
+
+export interface AppSettings {
+  defaultTimeframe: Timeframe;
+}
+
+const SETTINGS_KEY = "zoneapi:settings";
+
+function loadSettings(): AppSettings {
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as Partial<AppSettings>;
+      return {
+        defaultTimeframe: (TIMEFRAMES as readonly string[]).includes(parsed.defaultTimeframe ?? "")
+          ? (parsed.defaultTimeframe as Timeframe)
+          : "60m",
+      };
+    }
+  } catch {}
+  return { defaultTimeframe: "60m" };
+}
+
+export function saveSettings(settings: AppSettings): void {
+  try {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  } catch {}
+}
 
 export interface SymbolQuote {
   price: number;
@@ -17,6 +47,8 @@ interface AppState {
   quotes: Record<string, SymbolQuote>;
   activeZoneIds: Set<number>;
   apiConnected: boolean | null;
+  chartTimeframe: Timeframe;
+  settings: AppSettings;
 
   setView: (v: View) => void;
   setSelectedSymbol: (sym: string | null) => void;
@@ -30,7 +62,11 @@ interface AppState {
   setApiConnected: (ok: boolean) => void;
   navigateToDashboard: (symbol: string) => void;
   setSymbolZoneCount: (symbol: string, count: number) => void;
+  setChartTimeframe: (tf: Timeframe) => void;
+  updateSettings: (settings: AppSettings) => void;
 }
+
+const initialSettings = loadSettings();
 
 export const useStore = create<AppState>((set) => ({
   view: "dashboard",
@@ -39,6 +75,8 @@ export const useStore = create<AppState>((set) => ({
   quotes: {},
   activeZoneIds: new Set(),
   apiConnected: null,
+  chartTimeframe: initialSettings.defaultTimeframe,
+  settings: initialSettings,
 
   setView: (v) => set({ view: v }),
 
@@ -101,6 +139,13 @@ export const useStore = create<AppState>((set) => ({
         s.symbol === symbol ? { ...s, zoneCount: count } : s,
       ),
     })),
+
+  setChartTimeframe: (tf) => set({ chartTimeframe: tf }),
+
+  updateSettings: (settings) => {
+    saveSettings(settings);
+    set({ settings, chartTimeframe: settings.defaultTimeframe });
+  },
 }));
 
 export function hasActiveZoneForSymbol(
