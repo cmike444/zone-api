@@ -52,3 +52,7 @@ Thumbs.db
 artifacts/data/*.db
 artifacts/data/*.db-shm
 artifacts/data/*.db-wal
+
+artifacts/data/zones.db-shm
+artifacts/data/zones.db-wal
+artifacts/web-app/public/opengraph.jpg
