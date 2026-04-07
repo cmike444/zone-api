@@ -2,6 +2,9 @@ import { WebSocket } from "ws";
 import { getInternalAuthHeaders } from "../middlewares/internalAuth.js";
 import type { Candle, MarketMetrics } from "../types.js";
 import { logger } from "../lib/logger.js";
+import { fetchCandlesViaDxLink } from "./tastytradeCandles.js";
+import { getTastytradeClient } from "./tastytradeClient.js";
+import { MarketDataSubscriptionType } from "@tastytrade/api";
 
 function getBaseUrl(): string {
   return (
@@ -9,9 +12,9 @@ function getBaseUrl(): string {
   ).replace(/\/$/, "");
 }
 
-function getCandleBaseUrl(): string {
+function getCandleFallbackUrl(): string {
   return (
-    process.env["CANDLE_UNIVERSE_URL"] ?? getBaseUrl()
+    process.env["CANDLE_UNIVERSE_URL"] ?? "http://localhost:3005"
   ).replace(/\/$/, "");
 }
 
@@ -51,25 +54,45 @@ function normalizeCandle(raw: RawCandle): Candle {
   };
 }
 
+async function fetchCandlesFromFallback(
+  symbol: string,
+  timeframe: string,
+): Promise<Candle[]> {
+  const candleUrl = getCandleFallbackUrl();
+  try {
+    const raw = await fetchJson<RawCandle[]>(
+      candleUrl,
+      `/candles/${encodeURIComponent(symbol)}/${encodeURIComponent(timeframe)}`,
+    );
+    const candles = raw.map(normalizeCandle).filter(
+      (c) => c.timestamp > 0 && (c.high > 0 || c.close > 0),
+    );
+    if (candles.length === 0) {
+      logger.warn(
+        { symbol, timeframe, candleUrl },
+        "universeClient: fallback fetchCandles returned 0 candles",
+      );
+    }
+    return candles;
+  } catch (err) {
+    logger.error({ err, symbol, timeframe }, "universeClient: fallback candle fetch failed");
+    return [];
+  }
+}
+
 export async function fetchCandles(
   symbol: string,
   timeframe: string,
 ): Promise<Candle[]> {
-  const candleUrl = getCandleBaseUrl();
-  const raw = await fetchJson<RawCandle[]>(
-    candleUrl,
-    `/candles/${encodeURIComponent(symbol)}/${encodeURIComponent(timeframe)}`,
-  );
-  const candles = raw.map(normalizeCandle).filter(
-    (c) => c.timestamp > 0 && (c.high > 0 || c.close > 0),
-  );
-  if (candles.length === 0) {
-    logger.warn(
-      { symbol, timeframe, candleUrl },
-      "universeClient: fetchCandles returned 0 candles — zone detection will be skipped",
-    );
+  const dxCandles = await fetchCandlesViaDxLink(symbol, timeframe);
+  if (dxCandles !== null) {
+    return dxCandles;
   }
-  return candles;
+  logger.info(
+    { symbol, timeframe },
+    "universeClient: DXLink unavailable, using fallback HTTP source",
+  );
+  return fetchCandlesFromFallback(symbol, timeframe);
 }
 
 export async function fetchMetrics(symbol: string): Promise<MarketMetrics> {
@@ -96,7 +119,70 @@ export interface CandleTick {
 const RECONNECT_DELAY_MS = 3000;
 const MAX_RECONNECT_DELAY_MS = 30000;
 
-export function subscribePrice(
+function subscribePriceViaDxLink(
+  symbol: string,
+  onTick: (tick: PriceTick) => void,
+  onCandle?: (candle: CandleTick) => void,
+): () => void {
+  let stopped = false;
+  let removeListener: (() => void) | null = null;
+
+  getTastytradeClient().then((client) => {
+    if (!client || stopped) return;
+
+    client.quoteStreamer.connect().then(() => {
+      if (stopped) return;
+
+      const listener = (events: unknown[]) => {
+        for (const e of events as Record<string, unknown>[]) {
+          if (
+            e["eventType"] === "Quote" &&
+            e["bidPrice"] != null &&
+            e["askPrice"] != null
+          ) {
+            const bid = e["bidPrice"] as number;
+            const ask = e["askPrice"] as number;
+            const price = Math.round(((bid + ask) / 2) * 100) / 100;
+            onTick({ price, bid, ask, timestamp: Date.now() });
+          } else if (e["eventType"] === "Trade" && e["price"] != null) {
+            const price = e["price"] as number;
+            onTick({ price, timestamp: (e["time"] as number) ?? Date.now() });
+          } else if (e["eventType"] === "Candle" && onCandle && e["time"] != null) {
+            onCandle({
+              timeframe: "1m",
+              timestamp: e["time"] as number,
+              open: (e["open"] as number) ?? 0,
+              high: (e["high"] as number) ?? 0,
+              low: (e["low"] as number) ?? 0,
+              close: (e["close"] as number) ?? 0,
+              volume: e["volume"] as number | undefined,
+            });
+          }
+        }
+      };
+
+      removeListener = client.quoteStreamer.addEventListener(
+        listener as Parameters<typeof client.quoteStreamer.addEventListener>[0],
+      );
+
+      client.quoteStreamer.subscribe(
+        [symbol],
+        [MarketDataSubscriptionType.Quote, MarketDataSubscriptionType.Trade],
+      );
+
+      logger.info({ symbol }, "universeClient: DXLink price subscription active");
+    }).catch((err) => {
+      logger.error({ err, symbol }, "universeClient: DXLink connect for price failed");
+    });
+  }).catch(() => {});
+
+  return () => {
+    stopped = true;
+    if (removeListener) removeListener();
+  };
+}
+
+function subscribePriceViaWs(
   symbol: string,
   onTick: (tick: PriceTick) => void,
   onClose?: () => void,
@@ -186,4 +272,21 @@ export function subscribePrice(
     ws?.close();
     ws = null;
   };
+}
+
+export function subscribePrice(
+  symbol: string,
+  onTick: (tick: PriceTick) => void,
+  onClose?: () => void,
+  onCandle?: (candle: CandleTick) => void,
+): () => void {
+  const hasTasty =
+    !!process.env["TASTYTRADE_CLIENT_SECRET"] &&
+    !!process.env["TASTYTRADE_REFRESH_TOKEN"];
+
+  if (hasTasty) {
+    return subscribePriceViaDxLink(symbol, onTick, onCandle);
+  }
+
+  return subscribePriceViaWs(symbol, onTick, onClose, onCandle);
 }
