@@ -159,6 +159,16 @@ function computeConfluentZones(
   return confluent.sort((a, b) => b.combinedConfidence - a.combinedConfidence);
 }
 
+function safeNum(v: unknown, fallback: number): number {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function safeNumOpt(v: unknown): number | undefined {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : undefined;
+}
+
 function sdkZoneToInternal(
   sdkZone: Record<string, unknown>,
   symbol: string,
@@ -166,8 +176,8 @@ function sdkZoneToInternal(
 ): Zone {
   const direction = sdkDirectionToString(sdkZone["direction"] as number);
   const pattern = sdkTypeToPattern(sdkZone["type"] as number);
-  const proximalLine = (sdkZone["proximalLine"] as number) ?? 0;
-  const distalLine = (sdkZone["distalLine"] as number) ?? 0;
+  const proximalLine = safeNum(sdkZone["proximalLine"], 0);
+  const distalLine = safeNum(sdkZone["distalLine"], 0);
   return {
     id: 0,
     symbol,
@@ -176,14 +186,13 @@ function sdkZoneToInternal(
     pattern,
     proximalLine,
     distalLine,
-    confidence: (sdkZone["confidence"] as number) ?? 0.5,
-    rrScore: sdkZone["rrScore"] as number | undefined,
-    entryPrice: sdkZone["entryPrice"] as number | undefined,
-    stopPrice: sdkZone["stopPrice"] as number | undefined,
-    targetPrice:
-      (sdkZone["targetPrice"] as number | null | undefined) ?? undefined,
-    startTimestamp: (sdkZone["startTimestamp"] as number) ?? Date.now(),
-    endTimestamp: (sdkZone["endTimestamp"] as number) ?? Date.now(),
+    confidence: safeNum(sdkZone["confidence"], 0.5),
+    rrScore: safeNumOpt(sdkZone["rrScore"]),
+    entryPrice: safeNumOpt(sdkZone["entryPrice"]),
+    stopPrice: safeNumOpt(sdkZone["stopPrice"]),
+    targetPrice: safeNumOpt(sdkZone["targetPrice"]),
+    startTimestamp: safeNum(sdkZone["startTimestamp"], Date.now()),
+    endTimestamp: safeNum(sdkZone["endTimestamp"], Date.now()),
     detectedAt: Date.now(),
     isFresh: true,
   };

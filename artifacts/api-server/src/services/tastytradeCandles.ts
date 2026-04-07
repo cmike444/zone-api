@@ -18,16 +18,23 @@ interface DxFeedCandleEvent {
 
 const TF_CONFIG: Record<
   string,
-  { period: number; type: CandleType; daysBack: number }
+  { period: number; type: CandleType; daysBack: number; cacheTtlMs: number }
 > = {
-  "15m": { period: 15, type: CandleType.Minute, daysBack: 10 },
-  "60m": { period: 60, type: CandleType.Minute, daysBack: 30 },
-  "1d": { period: 1, type: CandleType.Day, daysBack: 365 },
+  "15m": { period: 15, type: CandleType.Minute, daysBack: 10,  cacheTtlMs: 5 * 60_000 },
+  "60m": { period: 60, type: CandleType.Minute, daysBack: 30,  cacheTtlMs: 5 * 60_000 },
+  "1d":  { period: 1,  type: CandleType.Day,    daysBack: 365, cacheTtlMs: 15 * 60_000 },
 };
 
-const CANDLE_TIMEOUT_MS = 12_000;
+const CANDLE_MAX_TIMEOUT_MS = 12_000;
+const CANDLE_SETTLE_MS = 600;
 
 const streamerSymbolCache = new Map<string, string>();
+
+interface CandleCache {
+  candles: Candle[];
+  fetchedAt: number;
+}
+const candleCache = new Map<string, CandleCache>();
 
 const FUTURES_ROOT_SYMBOLS = new Set([
   "ES", "MES", "NQ", "MNQ", "YM", "MYM", "RTY", "M2K",
@@ -108,6 +115,18 @@ export function clearStreamerSymbolCache(): void {
   streamerSymbolCache.clear();
 }
 
+export function clearCandleCache(symbol?: string, timeframe?: string): void {
+  if (symbol && timeframe) {
+    candleCache.delete(`${symbol}:${timeframe}`);
+  } else if (symbol) {
+    for (const key of candleCache.keys()) {
+      if (key.startsWith(`${symbol}:`)) candleCache.delete(key);
+    }
+  } else {
+    candleCache.clear();
+  }
+}
+
 export async function fetchCandlesViaDxLink(
   symbol: string,
   timeframe: string,
@@ -116,6 +135,16 @@ export async function fetchCandlesViaDxLink(
   if (!tf) {
     logger.warn({ symbol, timeframe }, "tastytradeCandles: unsupported timeframe");
     return null;
+  }
+
+  const cacheKey = `${symbol}:${timeframe}`;
+  const cached = candleCache.get(cacheKey);
+  if (cached && Date.now() - cached.fetchedAt < tf.cacheTtlMs) {
+    logger.debug(
+      { symbol, timeframe, count: cached.candles.length, ageMs: Date.now() - cached.fetchedAt },
+      "tastytradeCandles: returning cached candles",
+    );
+    return cached.candles;
   }
 
   const client = await getTastytradeClient();
@@ -137,13 +166,29 @@ export async function fetchCandlesViaDxLink(
   }
 
   const collectedEvents: DxFeedCandleEvent[] = [];
+  let settleTimer: ReturnType<typeof setTimeout> | null = null;
+  let resolveSettle: (() => void) | null = null;
+
+  const settlePromise = new Promise<void>((resolve) => {
+    resolveSettle = resolve;
+  });
+
+  const resetSettle = () => {
+    if (settleTimer) clearTimeout(settleTimer);
+    settleTimer = setTimeout(() => {
+      resolveSettle?.();
+    }, CANDLE_SETTLE_MS);
+  };
 
   const listener = (events: DxFeedCandleEvent[]) => {
+    let got = false;
     for (const e of events) {
       if (e.eventType === "Candle" || e.open !== undefined) {
         collectedEvents.push(e);
+        got = true;
       }
     }
+    if (got) resetSettle();
   };
 
   client.quoteStreamer.addEventListener(
@@ -163,11 +208,19 @@ export async function fetchCandlesViaDxLink(
     client.quoteStreamer.removeEventListener(
       listener as Parameters<typeof client.quoteStreamer.removeEventListener>[0],
     );
+    if (settleTimer) clearTimeout(settleTimer);
     logger.error({ err, symbol, timeframe }, "tastytradeCandles: subscribeCandles failed");
     return null;
   }
 
-  await new Promise((resolve) => setTimeout(resolve, CANDLE_TIMEOUT_MS));
+  resetSettle();
+
+  await Promise.race([
+    settlePromise,
+    new Promise<void>((resolve) => setTimeout(resolve, CANDLE_MAX_TIMEOUT_MS)),
+  ]);
+
+  if (settleTimer) clearTimeout(settleTimer);
 
   client.quoteStreamer.removeEventListener(
     listener as Parameters<typeof client.quoteStreamer.removeEventListener>[0],
@@ -205,6 +258,8 @@ export async function fetchCandlesViaDxLink(
     { symbol, timeframe, streamerSymbol, count: candles.length },
     "tastytradeCandles: fetched via DXLink",
   );
+
+  candleCache.set(cacheKey, { candles, fetchedAt: Date.now() });
 
   return candles;
 }
