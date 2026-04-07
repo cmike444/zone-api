@@ -55,13 +55,20 @@ export async function fetchCandles(
   symbol: string,
   timeframe: string,
 ): Promise<Candle[]> {
+  const candleUrl = getCandleBaseUrl();
   const raw = await fetchJson<RawCandle[]>(
-    getCandleBaseUrl(),
+    candleUrl,
     `/candles/${encodeURIComponent(symbol)}/${encodeURIComponent(timeframe)}`,
   );
   const candles = raw.map(normalizeCandle).filter(
     (c) => c.timestamp > 0 && (c.high > 0 || c.close > 0),
   );
+  if (candles.length === 0) {
+    logger.warn(
+      { symbol, timeframe, candleUrl },
+      "universeClient: fetchCandles returned 0 candles — zone detection will be skipped",
+    );
+  }
   return candles;
 }
 
