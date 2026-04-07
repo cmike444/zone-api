@@ -186,6 +186,13 @@ export async function fetchCandlesViaDxLink(
     let got = false;
     for (const e of events) {
       if (e.eventType === "Candle" || e.open !== undefined) {
+        // Filter events to only the requested streamerSymbol.
+        // DXLink eventSymbol for candles looks like "SPY{=60m}", so we extract
+        // the base symbol (before "{") and compare to the subscription target.
+        if (e.eventSymbol) {
+          const baseSymbol = e.eventSymbol.split("{")[0];
+          if (baseSymbol !== streamerSymbol) continue;
+        }
         collectedEvents.push(e);
         got = true;
       }

@@ -5,11 +5,10 @@ import {
 import { fetchCandles } from "./universeClient.js";
 import { getCurrentPrice } from "./priceService.js";
 import {
-  upsertZone,
   upsertConfluentZone,
   deleteConfluentZonesBySymbol,
   getConfluentZones,
-  markZonesStaleBySymbolTimeframe,
+  atomicReplaceZones,
 } from "../db/zoneRepo.js";
 import { logZoneTouch } from "../db/eventLogRepo.js";
 import { broadcastEvent } from "../websocket/server.js";
@@ -248,12 +247,8 @@ export async function detectZones(symbol: string): Promise<void> {
           .filter((z) => livePrice === undefined || livePrice > z.proximalLine),
       ];
 
-      markZonesStaleBySymbolTimeframe(symbol, tf);
-
-      for (const z of tfZones) {
-        const id = upsertZone(z);
-        z.id = id;
-      }
+      const ids = atomicReplaceZones(symbol, tf, tfZones);
+      tfZones.forEach((z, i) => { z.id = ids[i] ?? 0; });
 
       zonesByTf.set(tf, tfZones);
       logger.debug(

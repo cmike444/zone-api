@@ -85,6 +85,74 @@ export function markZonesStaleBySymbolTimeframe(
   ).run(symbol, timeframe);
 }
 
+/**
+ * Atomically replace zones for a symbol+timeframe:
+ * 1. Upsert all new zones (sets is_fresh = 1)
+ * 2. Mark stale any zone NOT in the new set
+ * This guarantees no gap where the symbol has zero fresh zones.
+ */
+export function atomicReplaceZones(symbol: string, timeframe: string, zones: import("../types.js").Zone[]): number[] {
+  const db = getDb();
+  const ids: number[] = [];
+
+  db.transaction(() => {
+    const upsertStmt = db.prepare(`
+      INSERT INTO zones
+        (symbol, timeframe, direction, pattern, proximal_line, distal_line, confidence,
+         rr_score, entry_price, stop_price, target_price,
+         start_timestamp, end_timestamp, detected_at, is_fresh)
+      VALUES
+        (@symbol, @timeframe, @direction, @pattern, @proximal_line, @distal_line, @confidence,
+         @rr_score, @entry_price, @stop_price, @target_price,
+         @start_timestamp, @end_timestamp, @detected_at, @is_fresh)
+      ON CONFLICT(symbol, timeframe, direction, start_timestamp) DO UPDATE SET
+        proximal_line = excluded.proximal_line,
+        distal_line   = excluded.distal_line,
+        confidence    = excluded.confidence,
+        end_timestamp = excluded.end_timestamp,
+        detected_at   = excluded.detected_at,
+        is_fresh      = 1
+    `);
+
+    for (const zone of zones) {
+      const result = upsertStmt.run({
+        symbol: zone.symbol,
+        timeframe: zone.timeframe,
+        direction: zone.direction,
+        pattern: zone.pattern,
+        proximal_line: zone.proximalLine,
+        distal_line: zone.distalLine,
+        confidence: zone.confidence,
+        rr_score: zone.rrScore ?? null,
+        entry_price: zone.entryPrice ?? null,
+        stop_price: zone.stopPrice ?? null,
+        target_price: zone.targetPrice ?? null,
+        start_timestamp: zone.startTimestamp,
+        end_timestamp: zone.endTimestamp,
+        detected_at: zone.detectedAt,
+        is_fresh: 1,
+      });
+      ids.push(result.lastInsertRowid as number);
+    }
+
+    if (zones.length > 0) {
+      const placeholders = zones.map(() => "?").join(",");
+      const startTimestamps = zones.map((z) => z.startTimestamp);
+      db.prepare(
+        `UPDATE zones SET is_fresh = 0
+         WHERE symbol = ? AND timeframe = ? AND is_fresh = 1
+           AND start_timestamp NOT IN (${placeholders})`,
+      ).run(symbol, timeframe, ...startTimestamps);
+    } else {
+      db.prepare(
+        "UPDATE zones SET is_fresh = 0 WHERE symbol = ? AND timeframe = ? AND is_fresh = 1",
+      ).run(symbol, timeframe);
+    }
+  })();
+
+  return ids;
+}
+
 export function upsertZone(zone: Zone): number {
   const db = getDb();
   const stmt = db.prepare(`
