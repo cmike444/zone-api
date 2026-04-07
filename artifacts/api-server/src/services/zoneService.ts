@@ -220,14 +220,26 @@ export async function detectZones(symbol: string): Promise<void> {
         identified.demandZones ?? [],
       );
 
+      // Second pass: remove zones where price has penetrated through the
+      // proximal line since the zone formed (computeIsFresh checks post-zone
+      // candle highs/lows against the proximal line).
+      const freshSupply = (filtered.supplyZones ?? []).filter((z) =>
+        computeIsFresh(z as unknown as Record<string, unknown>, sdkCandles),
+      );
+      const freshDemand = (filtered.demandZones ?? []).filter((z) =>
+        computeIsFresh(z as unknown as Record<string, unknown>, sdkCandles),
+      );
+
       logger.debug(
         {
           symbol,
           tf,
           rawSupply: (identified.supplyZones ?? []).length,
           rawDemand: (identified.demandZones ?? []).length,
-          freshSupply: (filtered.supplyZones ?? []).length,
-          freshDemand: (filtered.demandZones ?? []).length,
+          conflictFilteredSupply: (filtered.supplyZones ?? []).length,
+          conflictFilteredDemand: (filtered.demandZones ?? []).length,
+          freshSupply: freshSupply.length,
+          freshDemand: freshDemand.length,
         },
         "zoneService: sdk zone counts",
       );
@@ -235,12 +247,12 @@ export async function detectZones(symbol: string): Promise<void> {
       const livePrice = getCurrentPrice(symbol);
 
       const tfZones: Zone[] = [
-        ...(filtered.supplyZones ?? [])
+        ...freshSupply
           .map((z) =>
             sdkZoneToInternal(z as unknown as Record<string, unknown>, symbol, tf),
           )
           .filter((z) => livePrice === undefined || livePrice < z.proximalLine),
-        ...(filtered.demandZones ?? [])
+        ...freshDemand
           .map((z) =>
             sdkZoneToInternal(z as unknown as Record<string, unknown>, symbol, tf),
           )
