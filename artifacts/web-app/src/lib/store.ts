@@ -60,7 +60,7 @@ interface AppState {
   markZoneActive: (id: number) => void;
   markZoneInactive: (id: number) => void;
   setApiConnected: (ok: boolean) => void;
-  navigateToDashboard: (symbol: string) => void;
+  navigateToDashboard: (symbol: string, timeframe?: Timeframe) => void;
   setSymbolZoneCount: (symbol: string, count: number) => void;
   setChartTimeframe: (tf: Timeframe) => void;
   updateSettings: (settings: AppSettings) => void;
@@ -130,8 +130,12 @@ export const useStore = create<AppState>((set) => ({
 
   setApiConnected: (ok) => set({ apiConnected: ok }),
 
-  navigateToDashboard: (symbol) =>
-    set({ view: "dashboard", selectedSymbol: symbol }),
+  navigateToDashboard: (symbol, timeframe) =>
+    set((state) => ({
+      view: "dashboard",
+      selectedSymbol: symbol,
+      chartTimeframe: timeframe ?? state.chartTimeframe,
+    })),
 
   setSymbolZoneCount: (symbol, count) =>
     set((state) => ({

@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { ArrowUpDown, ArrowUp, ArrowDown, RefreshCw } from "lucide-react";
 import { api } from "@/lib/api";
-import { useStore } from "@/lib/store";
+import { useStore, type Timeframe } from "@/lib/store";
 import type { ConfluentZone } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -250,7 +250,7 @@ export function ZoneScanner() {
               return (
                 <tr
                   key={z.id ?? i}
-                  onClick={() => navigateToDashboard(z.symbol)}
+                  onClick={() => navigateToDashboard(z.symbol, z.timeframes?.[0] as Timeframe | undefined)}
                   className={cn(
                     "border-b border-border cursor-pointer transition-colors hover:bg-accent",
                     status === "active" && "active-zone-row",
