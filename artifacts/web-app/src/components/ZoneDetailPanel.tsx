@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { RefreshCw } from "lucide-react";
 import { api } from "@/lib/api";
 import type { Zone, ZoneEvent } from "@/lib/types";
@@ -20,18 +20,44 @@ export function ZoneDetailPanel({ symbol }: Props) {
   const [zones, setZones] = useState<Zone[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [lastRefresh, setLastRefresh] = useState<number | null>(null);
+  const autoTriggeredRef = useRef(new Set<string>());
 
   const loadZones = useCallback(async (sym: string, tf: string) => {
     try {
       const z = await api.getZones(sym, tf);
       setZones(z);
+      return z;
     } catch {}
+    return [];
   }, []);
+
+  const runDetect = useCallback(async (sym: string, tf: string): Promise<boolean> => {
+    setRefreshing(true);
+    let success = false;
+    try {
+      await api.refreshZones(sym);
+      await loadZones(sym, tf);
+      setLastRefresh(Date.now());
+      success = true;
+    } catch {}
+    setRefreshing(false);
+    return success;
+  }, [loadZones]);
 
   useEffect(() => {
     setZones([]);
-    void loadZones(symbol, chartTimeframe);
-  }, [symbol, chartTimeframe, loadZones]);
+    const key = `${symbol}:${chartTimeframe}`;
+    void (async () => {
+      const z = await loadZones(symbol, chartTimeframe);
+      if (z != null && z.length === 0 && !autoTriggeredRef.current.has(key)) {
+        autoTriggeredRef.current.add(key);
+        const succeeded = await runDetect(symbol, chartTimeframe);
+        if (!succeeded) {
+          autoTriggeredRef.current.delete(key);
+        }
+      }
+    })();
+  }, [symbol, chartTimeframe, loadZones, runDetect]);
 
   useEffect(() => {
     return wsClient.subscribe((event: ZoneEvent) => {
@@ -48,13 +74,7 @@ export function ZoneDetailPanel({ symbol }: Props) {
   }, [symbol, chartTimeframe, loadZones]);
 
   async function handleRefresh() {
-    setRefreshing(true);
-    try {
-      await api.refreshZones(symbol);
-      await loadZones(symbol, chartTimeframe);
-      setLastRefresh(Date.now());
-    } catch {}
-    setRefreshing(false);
+    await runDetect(symbol, chartTimeframe);
   }
 
   const supply = zones.filter((z) => z.direction === "supply");
@@ -85,13 +105,6 @@ export function ZoneDetailPanel({ symbol }: Props) {
         {zones.length === 0 && !refreshing && (
           <p className="px-3 py-4 text-muted-foreground text-center">
             No zones for {chartTimeframe}.
-            <br />
-            <button
-              onClick={() => void handleRefresh()}
-              className="mt-2 text-primary hover:underline text-xs"
-            >
-              Detect now
-            </button>
           </p>
         )}
         {refreshing && (

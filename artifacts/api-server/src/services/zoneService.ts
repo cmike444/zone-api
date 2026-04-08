@@ -24,7 +24,7 @@ import { logger } from "../lib/logger.js";
 const ZONE_DIRECTION = { SUPPLY: 0, DEMAND: 1 } as const;
 const ZONE_TYPE = { DROP_BASE_DROP: 0, RALLY_BASE_RALLY: 1, DROP_BASE_RALLY: 2, RALLY_BASE_DROP: 3 } as const;
 
-const TIMEFRAMES = ["1d", "60m", "15m"] as const;
+const TIMEFRAMES = ["1m", "5m", "15m", "60m", "1d", "1w", "1M", "3M", "6M"] as const;
 type Timeframe = (typeof TIMEFRAMES)[number];
 
 const refreshTimers = new Map<string, NodeJS.Timeout>();
