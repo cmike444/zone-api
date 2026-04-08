@@ -361,27 +361,22 @@ export function ChartPanel({ symbol }: Props) {
   return (
     <div className="flex flex-col flex-1 min-h-0 bg-background">
       <div className="flex items-center gap-2 px-3 py-2 border-b border-border">
-        {TIMEFRAMES.map((tf) => (
-          <button
-            key={tf}
-            onClick={() => setChartTimeframe(tf)}
-            className={cn(
-              "px-2.5 py-1 text-xs rounded font-medium transition-colors",
-              tf === timeframe
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:text-foreground hover:bg-accent",
-            )}
-          >
-            {tf}
-          </button>
-        ))}
+        <select
+          value={timeframe}
+          onChange={(e) => setChartTimeframe(e.target.value as typeof timeframe)}
+          className="text-xs rounded px-2 py-1 bg-accent text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
+        >
+          {TIMEFRAMES.map((tf) => (
+            <option key={tf} value={tf}>{tf}</option>
+          ))}
+        </select>
         {loading && (
-          <span className="ml-auto text-xs text-muted-foreground animate-pulse">
+          <span className="text-xs text-muted-foreground animate-pulse">
             Loading…
           </span>
         )}
         {error && (
-          <span className="ml-auto text-xs text-destructive truncate max-w-xs">
+          <span className="text-xs text-destructive truncate max-w-xs">
             {error}
           </span>
         )}
