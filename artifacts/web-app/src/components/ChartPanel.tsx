@@ -247,6 +247,7 @@ export function ChartPanel({ symbol }: Props) {
   const zonesRef = useRef<Zone[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [noData, setNoData] = useState(false);
   const currentTfRef = useRef(timeframe);
   currentTfRef.current = timeframe;
 
@@ -301,6 +302,7 @@ export function ChartPanel({ symbol }: Props) {
     let cancelled = false;
     setLoading(true);
     setError(null);
+    setNoData(false);
     candlesRef.current = [];
     zonesRef.current = [];
 
@@ -314,7 +316,13 @@ export function ChartPanel({ symbol }: Props) {
         candlesRef.current = candles;
         zonesRef.current = zones;
         setSymbolZoneCount(symbol, zones.length);
-        renderFull();
+        if (candles.length === 0) {
+          setNoData(true);
+          echartsRef.current?.clear();
+        } else {
+          setNoData(false);
+          renderFull();
+        }
       } catch (e) {
         if (!cancelled)
           setError(e instanceof Error ? e.message : "Failed to load chart");
@@ -378,7 +386,14 @@ export function ChartPanel({ symbol }: Props) {
           </span>
         )}
       </div>
-      <div ref={chartRef} className="flex-1 min-h-0" />
+      <div className="relative flex-1 min-h-0">
+        <div ref={chartRef} className="absolute inset-0" />
+        {noData && !loading && (
+          <div className="absolute inset-0 flex items-center justify-center text-muted-foreground text-sm">
+            No candle data available for {timeframe}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
