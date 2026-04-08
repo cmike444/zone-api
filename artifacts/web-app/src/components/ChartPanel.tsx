@@ -387,7 +387,7 @@ export function ChartPanel({ symbol }: Props) {
         )}
       </div>
       <div className="relative flex-1 min-h-0">
-        <div ref={chartRef} className="absolute inset-0" />
+        <div ref={chartRef} className="w-full h-full" />
         {noData && !loading && (
           <div className="absolute inset-0 flex items-center justify-center text-muted-foreground text-sm">
             No candle data available for {timeframe}
