@@ -12,7 +12,7 @@ import { logger } from "../lib/logger.js";
 interface SymbolState {
   unsubscribe: () => void;
   priceInsideZones: Set<number>;
-  currentPrice: number;
+  currentPrice: number | undefined;
 }
 
 const symbolStates = new Map<string, SymbolState>();
@@ -37,7 +37,7 @@ export function subscribePriceForSymbol(symbol: string): void {
   const state: SymbolState = {
     unsubscribe: () => {},
     priceInsideZones: new Set(),
-    currentPrice: 0,
+    currentPrice: undefined,
   };
 
   function onCandle(candle: CandleTick): void {

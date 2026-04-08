@@ -85,7 +85,7 @@ export const useStore = create<AppState>((set) => ({
   setSymbols: (symbols) => {
     const quotes: Record<string, SymbolQuote> = {};
     for (const s of symbols) {
-      if (s.currentPrice != null) {
+      if (s.currentPrice != null && s.currentPrice > 0) {
         quotes[s.symbol] = { price: s.currentPrice, ts: Date.now() };
       }
     }

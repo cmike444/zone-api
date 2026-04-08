@@ -40,7 +40,7 @@ function AppContent() {
         }
 
         for (const sym of syms) {
-          if (sym.currentPrice == null) {
+          if (!sym.currentPrice) {
             api.getPrice(sym.symbol)
               .then((r) => updateQuote(r.symbol, r.price))
               .catch(() => {});
