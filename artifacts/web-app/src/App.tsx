@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { Router, Route, Switch } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AppShell } from "@/components/AppShell";
 import { useStore } from "@/lib/store";
@@ -8,11 +9,12 @@ import type { ZoneEvent } from "@/lib/types";
 import Dashboard from "@/pages/Dashboard";
 import Scanner from "@/pages/Scanner";
 import Settings from "@/pages/Settings";
+import DocsPage from "@/pages/DocsPage";
 
 const queryClient = new QueryClient();
 
 function AppContent() {
-  const { view, setSymbols, setApiConnected, updateQuote, selectedSymbol, setSelectedSymbol } = useStore();
+  const { setSymbols, setApiConnected, updateQuote, setSelectedSymbol } = useStore();
 
   useEffect(() => {
     let interval: ReturnType<typeof setInterval>;
@@ -73,13 +75,12 @@ function AppContent() {
 
   return (
     <AppShell>
-      {view === "dashboard" ? (
-        <Dashboard />
-      ) : view === "scanner" ? (
-        <Scanner />
-      ) : (
-        <Settings />
-      )}
+      <Switch>
+        <Route path="/docs" component={DocsPage} />
+        <Route path="/scanner" component={Scanner} />
+        <Route path="/settings" component={Settings} />
+        <Route component={Dashboard} />
+      </Switch>
     </AppShell>
   );
 }
@@ -87,7 +88,9 @@ function AppContent() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <AppContent />
+      <Router>
+        <AppContent />
+      </Router>
     </QueryClientProvider>
   );
 }

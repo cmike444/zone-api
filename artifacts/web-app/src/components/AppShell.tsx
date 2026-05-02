@@ -1,16 +1,19 @@
 import { useEffect, useState } from "react";
-import { BarChart2, Scan, Wifi, WifiOff, Loader2, Settings } from "lucide-react";
-import { useStore, type View } from "@/lib/store";
+import { BarChart2, Scan, Wifi, WifiOff, Loader2, Settings, BookOpen } from "lucide-react";
+import { useLocation } from "wouter";
+import { useStore } from "@/lib/store";
 import { wsStatus, type StatusType } from "@/lib/wsClient";
 import { cn } from "@/lib/utils";
 
-const NAV: { id: View; label: string; Icon: React.FC<{ className?: string }> }[] = [
-  { id: "dashboard", label: "Dashboard", Icon: BarChart2 },
-  { id: "scanner", label: "Scanner", Icon: Scan },
+const NAV: { path: string; label: string; Icon: React.FC<{ className?: string }> }[] = [
+  { path: "/", label: "Dashboard", Icon: BarChart2 },
+  { path: "/scanner", label: "Scanner", Icon: Scan },
+  { path: "/docs", label: "API Docs", Icon: BookOpen },
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const { view, setView, apiConnected, selectedSymbol } = useStore();
+  const [location, navigate] = useLocation();
+  const { apiConnected, selectedSymbol } = useStore();
   const [wsState, setWsState] = useState<StatusType>("idle");
 
   useEffect(() => {
@@ -35,6 +38,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <span className="h-2 w-2 rounded-full bg-destructive animate-pulse" />
     );
 
+  function isActive(path: string): boolean {
+    if (path === "/") return location === "/" || location === "";
+    return location.startsWith(path);
+  }
+
   return (
     <div className="flex flex-col h-screen bg-background overflow-hidden">
       <header className="flex items-center gap-4 px-4 py-2 border-b border-border bg-sidebar shrink-0">
@@ -48,13 +56,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
 
         <nav className="flex items-center gap-0.5">
-          {NAV.map(({ id, label, Icon }) => (
+          {NAV.map(({ path, label, Icon }) => (
             <button
-              key={id}
-              onClick={() => setView(id)}
+              key={path}
+              onClick={() => navigate(path)}
               className={cn(
                 "flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium transition-colors",
-                view === id
+                isActive(path)
                   ? "bg-accent text-foreground"
                   : "text-muted-foreground hover:text-foreground hover:bg-accent/50",
               )}
@@ -65,7 +73,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           ))}
         </nav>
 
-        {view === "dashboard" && selectedSymbol && (
+        {isActive("/") && selectedSymbol && (
           <span className="text-sm font-semibold text-primary ml-1">
             {selectedSymbol}
           </span>
@@ -81,10 +89,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <span className="capitalize">{wsState === "idle" ? "—" : wsState}</span>
           </span>
           <button
-            onClick={() => setView("settings")}
+            onClick={() => navigate("/settings")}
             className={cn(
               "p-1.5 rounded transition-colors",
-              view === "settings"
+              isActive("/settings")
                 ? "bg-accent text-foreground"
                 : "text-muted-foreground hover:text-foreground hover:bg-accent/50",
             )}

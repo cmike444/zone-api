@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { ArrowUpDown, ArrowUp, ArrowDown, RefreshCw } from "lucide-react";
+import { useLocation } from "wouter";
 import { api } from "@/lib/api";
 import { useStore, type Timeframe } from "@/lib/store";
 import type { ConfluentZone } from "@/lib/types";
@@ -32,7 +33,14 @@ function zoneStatus(zone: ConfluentZone, activeIds: Set<number>): "active" | "st
 }
 
 export function ZoneScanner() {
-  const { navigateToDashboard, activeZoneIds } = useStore();
+  const [, navigate] = useLocation();
+  const { activeZoneIds, setSelectedSymbol, setChartTimeframe } = useStore();
+
+  function navigateToDashboard(symbol: string, timeframe?: Timeframe) {
+    setSelectedSymbol(symbol);
+    if (timeframe) setChartTimeframe(timeframe);
+    navigate("/");
+  }
   const [zones, setZones] = useState<ConfluentZone[]>([]);
   const [loading, setLoading] = useState(true);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);

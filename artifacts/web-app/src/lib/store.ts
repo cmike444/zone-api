@@ -1,8 +1,6 @@
 import { create } from "zustand";
 import type { ConfluentZone, MonitoredSymbol } from "./types";
 
-export type View = "dashboard" | "scanner" | "settings";
-
 export const TIMEFRAMES = ["1m", "5m", "15m", "60m", "1d", "1w", "1M", "3M", "6M"] as const;
 export type Timeframe = (typeof TIMEFRAMES)[number];
 
@@ -41,7 +39,6 @@ export interface SymbolQuote {
 }
 
 interface AppState {
-  view: View;
   selectedSymbol: string | null;
   symbols: MonitoredSymbol[];
   quotes: Record<string, SymbolQuote>;
@@ -50,7 +47,6 @@ interface AppState {
   chartTimeframe: Timeframe;
   settings: AppSettings;
 
-  setView: (v: View) => void;
   setSelectedSymbol: (sym: string | null) => void;
   setSymbols: (symbols: MonitoredSymbol[]) => void;
   updateQuote: (symbol: string, price: number, bid?: number, ask?: number) => void;
@@ -60,7 +56,6 @@ interface AppState {
   markZoneActive: (id: number) => void;
   markZoneInactive: (id: number) => void;
   setApiConnected: (ok: boolean) => void;
-  navigateToDashboard: (symbol: string, timeframe?: Timeframe) => void;
   setSymbolZoneCount: (symbol: string, count: number) => void;
   setChartTimeframe: (tf: Timeframe) => void;
   updateSettings: (settings: AppSettings) => void;
@@ -69,7 +64,6 @@ interface AppState {
 const initialSettings = loadSettings();
 
 export const useStore = create<AppState>((set) => ({
-  view: "dashboard",
   selectedSymbol: null,
   symbols: [],
   quotes: {},
@@ -77,8 +71,6 @@ export const useStore = create<AppState>((set) => ({
   apiConnected: null,
   chartTimeframe: initialSettings.defaultTimeframe,
   settings: initialSettings,
-
-  setView: (v) => set({ view: v }),
 
   setSelectedSymbol: (sym) => set({ selectedSymbol: sym }),
 
@@ -129,13 +121,6 @@ export const useStore = create<AppState>((set) => ({
     }),
 
   setApiConnected: (ok) => set({ apiConnected: ok }),
-
-  navigateToDashboard: (symbol, timeframe) =>
-    set((state) => ({
-      view: "dashboard",
-      selectedSymbol: symbol,
-      chartTimeframe: timeframe ?? state.chartTimeframe,
-    })),
 
   setSymbolZoneCount: (symbol, count) =>
     set((state) => ({
