@@ -7,6 +7,7 @@
  * OpenAPI spec version: 1.0.0
  */
 
-export interface HealthStatus {
-  status: string;
-}
+/**
+ * Unauthorized — missing or invalid INTERNAL_API_TOKEN
+ */
+export type UnauthorizedResponse = void;

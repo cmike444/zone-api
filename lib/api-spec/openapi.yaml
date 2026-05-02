@@ -2,21 +2,31 @@ openapi: 3.1.0
 info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
-  version: 0.1.0
-  description: API specification
+  version: 1.0.0
+  description: >
+    Supply/demand zone intelligence API. Provides zone detection, live price
+    streaming, market metrics, and MCP tool access for AI agents.
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
-    description: Health operations
+    description: Health and liveness endpoints
+  - name: zones
+    description: Supply and demand zone queries. All zone objects share a common shape.
+  - name: symbols
+    description: Manage the set of monitored symbols. Adding a symbol starts zone detection and live price streaming.
+  - name: market
+    description: Live price and market-metric lookups.
+  - name: visualization
+    description: Chart endpoints that render interactive ECharts views with zone overlays.
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
+      description: Returns 200 OK when the API server process is running. No authentication required.
       responses:
         "200":
           description: Healthy
@@ -24,7 +34,420 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+              example:
+                status: ok
+
+  /zones/top:
+    get:
+      operationId: getTopZones
+      tags: [zones]
+      summary: Get top zones
+      description: Returns the highest-confidence zones across all monitored symbols, ranked by combined_confidence descending.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          description: Max zones to return (default 10).
+          schema:
+            type: integer
+        - name: direction
+          in: query
+          required: false
+          description: Filter by zone direction.
+          schema:
+            type: string
+            enum: [supply, demand]
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Zone"
+              example:
+                - id: 42
+                  symbol: SPY
+                  direction: supply
+                  timeframe: 1d
+                  proximalLine: 528.5
+                  distalLine: 531.2
+                  combinedConfidence: 0.91
+                  priceInside: false
+                  active: true
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /zones/active:
+    get:
+      operationId: getActiveZones
+      tags: [zones]
+      summary: Get active zones
+      description: Returns all zones where the current price is currently inside the zone boundary (price_inside=true).
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Zone"
+              example:
+                - id: 7
+                  symbol: AAPL
+                  direction: demand
+                  timeframe: 60m
+                  proximalLine: 183.0
+                  distalLine: 181.4
+                  combinedConfidence: 0.78
+                  priceInside: true
+                  active: true
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /zones/{symbol}:
+    get:
+      operationId: getZonesBySymbol
+      tags: [zones]
+      summary: Get zones for a symbol
+      description: Returns all zones for a specific symbol, optionally filtered by timeframe.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: symbol
+          in: path
+          required: true
+          description: "Stock ticker, e.g. AAPL."
+          schema:
+            type: string
+        - name: timeframe
+          in: query
+          required: false
+          description: "Filter by timeframe, e.g. 60m, 1d."
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Zone"
+              example:
+                - id: 3
+                  symbol: AAPL
+                  direction: supply
+                  timeframe: 1d
+                  proximalLine: 191.0
+                  distalLine: 193.5
+                  combinedConfidence: 0.85
+                  priceInside: false
+                  active: true
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /zones/{symbol}/confluent:
+    get:
+      operationId: getConfluentZones
+      tags: [zones]
+      summary: Get confluent zones for a symbol
+      description: >
+        Returns multi-timeframe confluence zones — zones where at least two
+        timeframes agree. Filtered to only actionable zones relative to current price.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: symbol
+          in: path
+          required: true
+          description: "Stock ticker, e.g. SPY."
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ConfluentZone"
+              example:
+                - id: 18
+                  symbol: SPY
+                  direction: demand
+                  timeframes: [60m, 15m]
+                  proximalLine: 519.8
+                  distalLine: 518.1
+                  combinedConfidence: 0.88
+                  priceInside: false
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /zones/{symbol}/refresh:
+    post:
+      operationId: refreshZones
+      tags: [zones]
+      summary: Refresh zones for a symbol
+      description: Triggers a fresh zone detection run for the given symbol across all timeframes and returns the updated zone count.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: symbol
+          in: path
+          required: true
+          description: Stock ticker to refresh.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RefreshResult"
+              example:
+                ok: true
+                count: 12
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /symbols:
+    get:
+      operationId: listSymbols
+      tags: [symbols]
+      summary: List monitored symbols
+      description: Returns all symbols currently being monitored along with their latest price and zone count.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MonitoredSymbol"
+              example:
+                - symbol: SPY
+                  currentPrice: 528.14
+                  zoneCount: 9
+                - symbol: AAPL
+                  currentPrice: 183.45
+                  zoneCount: 6
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /symbols/{symbol}:
+    post:
+      operationId: startMonitoringSymbol
+      tags: [symbols]
+      summary: Start monitoring a symbol
+      description: >
+        Adds a symbol to the monitored set, detects zones, schedules periodic
+        refresh, and subscribes to the live price stream. Returns 201 on success.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: symbol
+          in: path
+          required: true
+          description: Stock ticker to start monitoring.
+          schema:
+            type: string
+      responses:
+        "201":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SymbolStatus"
+              example:
+                symbol: AAPL
+                status: monitoring
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    delete:
+      operationId: stopMonitoringSymbol
+      tags: [symbols]
+      summary: Stop monitoring a symbol
+      description: Removes a symbol from monitoring, cancels refresh jobs, unsubscribes from the price stream, and deletes all stored zones.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: symbol
+          in: path
+          required: true
+          description: Stock ticker to stop monitoring.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SymbolStatus"
+              example:
+                symbol: AAPL
+                status: stopped
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /price/{symbol}:
+    get:
+      operationId: getCurrentPrice
+      tags: [market]
+      summary: Get current price
+      description: Returns the latest cached price for a monitored symbol.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: symbol
+          in: path
+          required: true
+          description: Stock ticker.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PriceResult"
+              example:
+                symbol: SPY
+                price: 528.14
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /candles/{symbol}/{timeframe}:
+    get:
+      operationId: getCandles
+      tags: [market]
+      summary: Get OHLCV candles for a symbol
+      description: >
+        Fetches historical OHLCV (open, high, low, close, volume) candle data for
+        a symbol and timeframe from the symbol-universe service. Used to render the
+        candlestick chart.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: symbol
+          in: path
+          required: true
+          description: "Stock ticker, e.g. AAPL."
+          schema:
+            type: string
+        - name: timeframe
+          in: path
+          required: true
+          description: "Candle timeframe. Allowed: 1m, 5m, 15m, 60m, 1d, 1w, 1M, 3M, 6M."
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Candle"
+              example:
+                - timestamp: 1714000000000
+                  open: 183.0
+                  high: 184.5
+                  low: 182.8
+                  close: 183.9
+                  volume: 12345678
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /scan/{symbol}:
+    get:
+      operationId: scanSymbol
+      tags: [market]
+      summary: Scan symbol metrics
+      description: >
+        Fetches live market metrics from the symbol-universe service: IV rank, IVx,
+        upcoming earnings date, and related data useful for position sizing.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: symbol
+          in: path
+          required: true
+          description: Stock ticker.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScanResult"
+              example:
+                symbol: AAPL
+                ivRank: 42.3
+                ivx: 28.1
+                earningsDate: "2024-10-31"
+                sectorIvRank: 38.7
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /chart/{symbol}:
+    get:
+      operationId: getChart
+      tags: [visualization]
+      summary: Get chart for symbol
+      description: >
+        Returns an HTML page containing an interactive ECharts candlestick chart
+        with supply/demand zone overlays. Open in a browser for visual analysis.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: symbol
+          in: path
+          required: true
+          description: Stock ticker.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            text/html:
+              schema:
+                type: string
+              example: "<!-- HTML page with embedded ECharts candlestick chart -->"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: >
+        Set INTERNAL_API_TOKEN on the API server. Pass the same value as a Bearer
+        token in the Authorization header.
+
+  responses:
+    Unauthorized:
+      description: Unauthorized — missing or invalid INTERNAL_API_TOKEN
+
   schemas:
     HealthStatus:
       type: object
@@ -34,3 +457,124 @@ components:
       required:
         - status
 
+    Zone:
+      type: object
+      properties:
+        id:
+          type: integer
+        symbol:
+          type: string
+        direction:
+          type: string
+          enum: [supply, demand]
+        timeframe:
+          type: string
+        proximalLine:
+          type: number
+        distalLine:
+          type: number
+        combinedConfidence:
+          type: number
+        priceInside:
+          type: boolean
+        active:
+          type: boolean
+      required: [id, symbol, direction, timeframe, proximalLine, distalLine, combinedConfidence, priceInside, active]
+
+    ConfluentZone:
+      type: object
+      properties:
+        id:
+          type: integer
+        symbol:
+          type: string
+        direction:
+          type: string
+          enum: [supply, demand]
+        timeframes:
+          type: array
+          items:
+            type: string
+        proximalLine:
+          type: number
+        distalLine:
+          type: number
+        combinedConfidence:
+          type: number
+        priceInside:
+          type: boolean
+      required: [id, symbol, direction, timeframes, proximalLine, distalLine, combinedConfidence, priceInside]
+
+    RefreshResult:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        count:
+          type: integer
+      required: [ok, count]
+
+    MonitoredSymbol:
+      type: object
+      properties:
+        symbol:
+          type: string
+        currentPrice:
+          type: number
+          nullable: true
+        zoneCount:
+          type: integer
+      required: [symbol, zoneCount]
+
+    SymbolStatus:
+      type: object
+      properties:
+        symbol:
+          type: string
+        status:
+          type: string
+      required: [symbol, status]
+
+    PriceResult:
+      type: object
+      properties:
+        symbol:
+          type: string
+        price:
+          type: number
+          nullable: true
+      required: [symbol, price]
+
+    Candle:
+      type: object
+      properties:
+        timestamp:
+          type: integer
+        open:
+          type: number
+        high:
+          type: number
+        low:
+          type: number
+        close:
+          type: number
+        volume:
+          type: integer
+      required: [timestamp, open, high, low, close, volume]
+
+    ScanResult:
+      type: object
+      properties:
+        symbol:
+          type: string
+        ivRank:
+          type: number
+        ivx:
+          type: number
+        earningsDate:
+          type: string
+          nullable: true
+        sectorIvRank:
+          type: number
+          nullable: true
+      required: [symbol]

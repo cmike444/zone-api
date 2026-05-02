@@ -7,6 +7,10 @@
  * OpenAPI spec version: 1.0.0
  */
 
-export interface HealthStatus {
-  status: string;
-}
+export type ConfluentZoneDirection =
+  (typeof ConfluentZoneDirection)[keyof typeof ConfluentZoneDirection];
+
+export const ConfluentZoneDirection = {
+  supply: "supply",
+  demand: "demand",
+} as const;

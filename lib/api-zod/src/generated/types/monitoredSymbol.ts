@@ -7,6 +7,8 @@
  * OpenAPI spec version: 1.0.0
  */
 
-export interface HealthStatus {
-  status: string;
+export interface MonitoredSymbol {
+  symbol: string;
+  currentPrice?: number | null;
+  zoneCount: number;
 }

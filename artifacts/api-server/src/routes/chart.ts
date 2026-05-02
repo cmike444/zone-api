@@ -1,15 +1,18 @@
 import { Router } from "express";
+import { registerRoutes } from "./register.js";
+import { ROUTES } from "./chart.meta.js";
 
 const router = Router();
 
-router.get("/:symbol", (req, res) => {
-  const symbol = req.params["symbol"]?.toUpperCase();
-  if (!symbol) {
-    res.status(400).json({ error: "symbol is required" });
-    return;
-  }
+registerRoutes(router, ROUTES, {
+  getChart: (req, res) => {
+    const symbol = req.params["symbol"]?.toUpperCase();
+    if (!symbol) {
+      res.status(400).json({ error: "symbol is required" });
+      return;
+    }
 
-  const html = `<!DOCTYPE html>
+    const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -166,8 +169,9 @@ router.get("/:symbol", (req, res) => {
 </body>
 </html>`;
 
-  res.setHeader("Content-Type", "text/html");
-  res.send(html);
+    res.setHeader("Content-Type", "text/html");
+    res.send(html);
+  },
 });
 
 export default router;

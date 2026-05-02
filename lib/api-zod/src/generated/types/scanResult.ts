@@ -7,6 +7,10 @@
  * OpenAPI spec version: 1.0.0
  */
 
-export interface HealthStatus {
-  status: string;
+export interface ScanResult {
+  symbol: string;
+  ivRank?: number;
+  ivx?: number;
+  earningsDate?: string | null;
+  sectorIvRank?: number | null;
 }

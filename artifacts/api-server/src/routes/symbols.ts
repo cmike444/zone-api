@@ -13,55 +13,59 @@ import {
 } from "../db/zoneRepo.js";
 import { persistSymbol, removePersistedSymbol } from "../db/symbolRepo.js";
 import { logger } from "../lib/logger.js";
+import { registerRoutes } from "./register.js";
+import { ROUTES } from "./symbols.meta.js";
 
 const router = Router();
 
-router.post("/:symbol", async (req, res) => {
-  const { symbol } = req.params;
-  if (!symbol) {
-    res.status(400).json({ error: "symbol is required" });
-    return;
-  }
-  const sym = symbol.toUpperCase();
+registerRoutes(router, ROUTES, {
+  listSymbols: (_req, res) => {
+    const monitored = getMonitoredSymbols();
+    const result = monitored.map((symbol) => ({
+      symbol,
+      currentPrice: getCurrentPrice(symbol),
+      zoneCount: getZoneCount(symbol),
+    }));
+    res.json(result);
+  },
 
-  try {
-    persistSymbol(sym);
-    await detectZones(sym);
-    scheduleRefresh(sym);
-    subscribePriceForSymbol(sym);
-    res.status(201).json({ symbol: sym, status: "monitoring" });
-  } catch (err) {
-    req.log.error({ err, symbol: sym }, "Failed to start monitoring symbol");
-    res.status(500).json({ error: "Failed to start monitoring" });
-  }
-});
+  startMonitoring: async (req, res) => {
+    const { symbol } = req.params;
+    if (!symbol) {
+      res.status(400).json({ error: "symbol is required" });
+      return;
+    }
+    const sym = symbol.toUpperCase();
 
-router.delete("/:symbol", (req, res) => {
-  const { symbol } = req.params;
-  if (!symbol) {
-    res.status(400).json({ error: "symbol is required" });
-    return;
-  }
-  const sym = symbol.toUpperCase();
+    try {
+      persistSymbol(sym);
+      await detectZones(sym);
+      scheduleRefresh(sym);
+      subscribePriceForSymbol(sym);
+      res.status(201).json({ symbol: sym, status: "monitoring" });
+    } catch (err) {
+      req.log.error({ err, symbol: sym }, "Failed to start monitoring symbol");
+      res.status(500).json({ error: "Failed to start monitoring" });
+    }
+  },
 
-  cancelRefresh(sym);
-  unsubscribePriceForSymbol(sym);
-  deleteConfluentZonesBySymbol(sym);
-  deleteZonesBySymbol(sym);
-  removePersistedSymbol(sym);
+  stopMonitoring: (req, res) => {
+    const { symbol } = req.params;
+    if (!symbol) {
+      res.status(400).json({ error: "symbol is required" });
+      return;
+    }
+    const sym = symbol.toUpperCase();
 
-  logger.info({ symbol: sym }, "Stopped monitoring symbol");
-  res.json({ symbol: sym, status: "stopped" });
-});
+    cancelRefresh(sym);
+    unsubscribePriceForSymbol(sym);
+    deleteConfluentZonesBySymbol(sym);
+    deleteZonesBySymbol(sym);
+    removePersistedSymbol(sym);
 
-router.get("/", (_req, res) => {
-  const monitored = getMonitoredSymbols();
-  const result = monitored.map((symbol) => ({
-    symbol,
-    currentPrice: getCurrentPrice(symbol),
-    zoneCount: getZoneCount(symbol),
-  }));
-  res.json(result);
+    logger.info({ symbol: sym }, "Stopped monitoring symbol");
+    res.json({ symbol: sym, status: "stopped" });
+  },
 });
 
 export default router;

@@ -456,6 +456,9 @@ importers:
 
   artifacts/web-app:
     dependencies:
+      '@workspace/api-catalogue':
+        specifier: workspace:*
+        version: link:../../lib/api-catalogue
       echarts:
         specifier: ^6.0.0
         version: 6.0.0
@@ -652,6 +655,12 @@ importers:
       zod:
         specifier: 'catalog:'
         version: 3.25.76
+
+  lib/api-catalogue:
+    devDependencies:
+      tsx:
+        specifier: 'catalog:'
+        version: 4.21.0
 
   lib/api-client-react:
     dependencies:

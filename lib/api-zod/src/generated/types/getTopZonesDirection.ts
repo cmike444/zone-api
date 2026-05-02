@@ -7,6 +7,10 @@
  * OpenAPI spec version: 1.0.0
  */
 
-export interface HealthStatus {
-  status: string;
-}
+export type GetTopZonesDirection =
+  (typeof GetTopZonesDirection)[keyof typeof GetTopZonesDirection];
+
+export const GetTopZonesDirection = {
+  supply: "supply",
+  demand: "demand",
+} as const;

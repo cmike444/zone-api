@@ -7,6 +7,9 @@
  * OpenAPI spec version: 1.0.0
  */
 
-export interface HealthStatus {
-  status: string;
-}
+export type GetZonesBySymbolParams = {
+  /**
+   * Filter by timeframe, e.g. 60m, 1d.
+   */
+  timeframe?: string;
+};

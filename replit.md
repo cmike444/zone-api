@@ -81,6 +81,15 @@ Tables: `zones`, `confluent_zones`, `zone_touches`.
 | `ZONE_REFRESH_INTERVAL_MINUTES` | No (default 60) | How often to re-detect zones |
 | `ZONES_DB_PATH` | No | Override SQLite file path |
 
+**Adding a New REST Endpoint (Required Convention)**
+
+All new routes must follow the `*.meta.ts + registerRoutes()` pattern so the docs page and codegen stay automatically in sync:
+1. Add the endpoint as a `RouteEntry` in the relevant `routes/*.meta.ts` file (declares the route path, HTTP method, and docs metadata in one place).
+2. Add the matching handler to the `registerRoutes()` call in the paired `routes/*.ts` file — TypeScript enforces exhaustive coverage at compile time.
+3. Run dev or build — `lib/api-catalogue/scripts/codegen.ts` auto-discovers all `*.meta.ts` files and regenerates `lib/api-catalogue/src/generated/categories.ts`.
+
+Avoid adding routes directly via `router.get()`/`router.post()` etc. — those bypass the catalogue and will cause the docs page to silently drift.
+
 **Source Structure**
 ```
 src/
@@ -101,12 +110,14 @@ src/
     universeClient.ts   — HTTP client for symbol-universe (injects auth headers)
   routes/
     index.ts            — Route mount + auth middleware
-    health.ts           — /healthz
-    symbols.ts          — /symbols
-    zones.ts            — /zones
-    price.ts            — /price
-    scan.ts             — /scan
-    chart.ts            — /chart
+    register.ts         — RouteEntry/RouteRegistry types + registerRoutes() helper
+    health.ts / health.meta.ts     — /healthz
+    symbols.ts / symbols.meta.ts   — /symbols
+    zones.ts / zones.meta.ts       — /zones
+    price.ts / price.meta.ts       — /price
+    scan.ts / scan.meta.ts         — /scan
+    chart.ts / chart.meta.ts       — /chart
+    route-doc.ts        — RouteDocCategory type
   websocket/
     server.ts           — WS server (upgrade auth + event broadcasting)
   mcp/
