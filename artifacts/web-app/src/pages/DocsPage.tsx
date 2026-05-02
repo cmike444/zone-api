@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Download, ChevronDown, ChevronRight, Lock, Zap, Globe } from "lucide-react";
+import { Download, ChevronDown, ChevronRight, Lock, Zap, Globe, Play } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   type HttpMethod,
@@ -186,6 +186,176 @@ function downloadFile(filename: string, content: string, mimeType: string) {
   URL.revokeObjectURL(url);
 }
 
+// ─── Try-it panel ────────────────────────────────────────────────────────────
+
+type TryItStatus = "idle" | "loading" | "success" | "error";
+
+const DESTRUCTIVE_METHODS = new Set<HttpMethod>(["POST", "PUT", "PATCH", "DELETE"]);
+
+function TryItPanel({ ep }: { ep: Endpoint }) {
+  const [token, setToken] = useState("");
+  const [paramValues, setParamValues] = useState<Record<string, string>>({});
+  const [status, setStatus] = useState<TryItStatus>("idle");
+  const [responseBody, setResponseBody] = useState("");
+  const [statusCode, setStatusCode] = useState<number | null>(null);
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
+
+  const pathParams = ep.params.filter((p) => p.in === "path");
+  const queryParams = ep.params.filter((p) => p.in === "query");
+  const isDestructive = DESTRUCTIVE_METHODS.has(ep.method);
+
+  async function handleSend() {
+    const errors: string[] = [];
+    for (const p of ep.params) {
+      if (p.required && !paramValues[p.name]?.trim()) {
+        errors.push(`"${p.name}" (${p.in}) is required`);
+      }
+    }
+    if (errors.length > 0) {
+      setValidationErrors(errors);
+      return;
+    }
+    setValidationErrors([]);
+    setStatus("loading");
+    setResponseBody("");
+    setStatusCode(null);
+
+    let url = ep.path;
+    for (const p of pathParams) {
+      const val = paramValues[p.name] ?? "";
+      url = url.replace(`:${p.name}`, encodeURIComponent(val));
+    }
+
+    const qp = new URLSearchParams();
+    for (const p of queryParams) {
+      const val = paramValues[p.name];
+      if (val) qp.set(p.name, val);
+    }
+    const qs = qp.toString();
+    if (qs) url += `?${qs}`;
+
+    try {
+      const headers: Record<string, string> = {};
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+
+      const res = await fetch(url, { method: ep.method, headers });
+      setStatusCode(res.status);
+
+      const text = await res.text();
+      try {
+        setResponseBody(JSON.stringify(JSON.parse(text), null, 2));
+      } catch {
+        setResponseBody(text);
+      }
+      setStatus(res.ok ? "success" : "error");
+    } catch (err) {
+      setStatus("error");
+      setResponseBody(String(err));
+    }
+  }
+
+  return (
+    <div className="border-t border-border pt-4 space-y-3">
+      <div className="flex items-center gap-2 flex-wrap">
+        <h4 className="text-xs font-semibold text-foreground uppercase tracking-wider">Try it</h4>
+        {ep.auth && (
+          <span className="text-xs text-yellow-400/80 bg-yellow-500/10 border border-yellow-500/20 px-2 py-0.5 rounded">
+            Requires INTERNAL_API_TOKEN
+          </span>
+        )}
+        {isDestructive && (
+          <span className="text-xs text-orange-400/80 bg-orange-500/10 border border-orange-500/20 px-2 py-0.5 rounded">
+            {ep.method} — may modify or delete data
+          </span>
+        )}
+      </div>
+
+      {ep.auth && (
+        <div>
+          <label className="text-xs text-muted-foreground block mb-1">
+            Token <span className="text-muted-foreground/50">(Bearer)</span>
+          </label>
+          <input
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+            placeholder="Paste your INTERNAL_API_TOKEN here"
+            type="password"
+            className="w-full text-xs font-mono bg-background border border-border rounded px-2 py-1.5 text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-ring"
+          />
+        </div>
+      )}
+
+      {ep.params.length > 0 && (
+        <div className="space-y-2">
+          {ep.params.map((p) => (
+            <div key={p.name}>
+              <label className="text-xs text-muted-foreground block mb-1">
+                <span className="font-mono text-foreground/80">{p.name}</span>
+                <span className="ml-1 text-muted-foreground/50">({p.in})</span>
+                {p.required && <span className="ml-1 text-supply font-bold">*</span>}
+              </label>
+              <input
+                value={paramValues[p.name] ?? ""}
+                onChange={(e) => {
+                  setParamValues((prev) => ({ ...prev, [p.name]: e.target.value }));
+                  if (validationErrors.length > 0) setValidationErrors([]);
+                }}
+                placeholder={p.description}
+                className={cn(
+                  "w-full text-xs font-mono bg-background border rounded px-2 py-1.5 text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-ring",
+                  p.required && !paramValues[p.name]?.trim() && validationErrors.length > 0
+                    ? "border-red-500/50"
+                    : "border-border",
+                )}
+              />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {validationErrors.length > 0 && (
+        <div className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded px-2 py-1.5 space-y-0.5">
+          {validationErrors.map((e) => (
+            <div key={e}>• {e}</div>
+          ))}
+        </div>
+      )}
+
+      <button
+        onClick={handleSend}
+        disabled={status === "loading"}
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+      >
+        <Play className="h-3 w-3" />
+        {status === "loading" ? "Sending…" : "Send Request"}
+      </button>
+
+      {status !== "idle" && status !== "loading" && (
+        <div>
+          <div className="flex items-center gap-2 mb-1.5">
+            <h4 className="text-xs font-semibold text-foreground uppercase tracking-wider">Response</h4>
+            {statusCode !== null && (
+              <span
+                className={cn(
+                  "text-xs font-mono px-1.5 py-0.5 rounded border",
+                  statusCode >= 200 && statusCode < 300
+                    ? "bg-green-500/15 text-green-400 border-green-500/30"
+                    : "bg-red-500/15 text-red-400 border-red-500/30",
+                )}
+              >
+                {statusCode}
+              </span>
+            )}
+          </div>
+          <pre className="bg-background rounded-md p-3 text-xs font-mono text-muted-foreground overflow-x-auto border border-border max-h-64 overflow-y-auto">
+            {responseBody || "(empty body)"}
+          </pre>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
 const METHOD_STYLES: Record<HttpMethod, string> = {
@@ -206,6 +376,7 @@ function MethodBadge({ method }: { method: HttpMethod }) {
 
 function EndpointCard({ ep }: { ep: Endpoint }) {
   const [open, setOpen] = useState(false);
+  const [tryItOpen, setTryItOpen] = useState(false);
 
   return (
     <div className="border border-border rounded-lg overflow-hidden">
@@ -272,6 +443,23 @@ function EndpointCard({ ep }: { ep: Endpoint }) {
               {JSON.stringify(ep.exampleResponse, null, 2)}
             </pre>
           </div>
+
+          <div className="flex justify-end">
+            <button
+              onClick={() => setTryItOpen((v) => !v)}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-semibold border transition-colors",
+                tryItOpen
+                  ? "bg-primary/10 text-primary border-primary/30 hover:bg-primary/20"
+                  : "bg-accent hover:bg-accent/80 text-foreground border-border",
+              )}
+            >
+              <Play className="h-3 w-3" />
+              {tryItOpen ? "Hide" : "Try it"}
+            </button>
+          </div>
+
+          {tryItOpen && <TryItPanel ep={ep} />}
         </div>
       )}
     </div>
