@@ -1,6 +1,7 @@
 import { Router } from "express";
 import {
   getZonesBySymbol,
+  getZonesBySymbolGrouped,
   getConfluentZones,
   getTopZones,
   getActiveZones,
@@ -61,6 +62,16 @@ registerRoutes(router, ROUTES, {
       req.log.error({ err, symbol }, "zones: refresh failed");
       res.status(500).json({ error: "Failed to refresh zones" });
     }
+  },
+
+  getBySymbolGrouped: (req, res) => {
+    const symbol = req.params["symbol"]?.toUpperCase();
+    if (!symbol) {
+      res.status(400).json({ error: "symbol is required" });
+      return;
+    }
+    const grouped = getZonesBySymbolGrouped(symbol);
+    res.json(grouped);
   },
 
   getBySymbol: (req, res) => {

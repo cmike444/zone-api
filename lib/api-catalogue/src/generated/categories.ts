@@ -121,6 +121,48 @@ export const CATEGORIES: Category[] = [
       },
       {
         "method": "GET",
+        "path": "/api/zones/:symbol/timeframes",
+        "summary": "Get zones grouped by timeframe",
+        "description": "Returns all fresh zones for a symbol grouped by timeframe key. Only timeframes with at least one zone are included.",
+        "auth": true,
+        "params": [
+          {
+            "name": "symbol",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "description": "Stock ticker, e.g. AAPL."
+          }
+        ],
+        "exampleResponse": {
+          "1d": [
+            {
+              "id": 1,
+              "symbol": "AAPL",
+              "timeframe": "1d",
+              "direction": "supply",
+              "proximalLine": 191,
+              "distalLine": 193.5,
+              "confidence": 0.85,
+              "isFresh": true
+            }
+          ],
+          "60m": [
+            {
+              "id": 2,
+              "symbol": "AAPL",
+              "timeframe": "60m",
+              "direction": "demand",
+              "proximalLine": 182,
+              "distalLine": 180.5,
+              "confidence": 0.78,
+              "isFresh": true
+            }
+          ]
+        }
+      },
+      {
+        "method": "GET",
         "path": "/api/zones/:symbol",
         "summary": "Get zones for a symbol",
         "description": "Returns all zones for a specific symbol, optionally filtered by timeframe.",

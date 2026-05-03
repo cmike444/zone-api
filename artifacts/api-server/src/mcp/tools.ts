@@ -1,6 +1,8 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import {
+  getZonesBySymbol,
+  getZonesBySymbolGrouped,
   getConfluentZones,
   getTopZones,
   getActiveZones,
@@ -32,6 +34,29 @@ const WRITE = {
 } as const;
 
 export function registerTools(server: McpServer): void {
+  server.tool(
+    "get_zones",
+    "Get supply/demand zones for a symbol. When no timeframe is given, returns zones grouped by timeframe key (e.g. {\"1d\": [...], \"60m\": [...]}). When a timeframe is specified, returns a flat list filtered to that timeframe. The symbol must already be monitored.",
+    {
+      symbol: z.string().describe("Stock ticker symbol, e.g. AAPL"),
+      timeframe: z.string().optional().describe("Optional timeframe filter, e.g. 1d, 60m, 15m. Omit for grouped response."),
+    },
+    READ_ONLY,
+    async ({ symbol, timeframe }) => {
+      try {
+        const sym = symbol.toUpperCase();
+        if (timeframe) {
+          const zones = getZonesBySymbol(sym, timeframe);
+          return { content: [{ type: "text", text: JSON.stringify(zones, null, 2) }] };
+        }
+        const grouped = getZonesBySymbolGrouped(sym);
+        return { content: [{ type: "text", text: JSON.stringify(grouped, null, 2) }] };
+      } catch (error: any) {
+        return { content: [{ type: "text", text: `Error: ${error.message}` }], isError: true };
+      }
+    },
+  );
+
   server.tool(
     "monitor_symbol",
     "Start monitoring a symbol for supply/demand zones and live price action. Detects zones across 1d/60m/15m timeframes, schedules periodic refresh, and subscribes to the price stream. Call this before any zone queries on a new symbol.",

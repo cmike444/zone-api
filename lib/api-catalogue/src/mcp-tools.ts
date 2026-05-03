@@ -2,6 +2,17 @@ import type { McpTool } from "./types.js";
 
 export const MCP_TOOLS: McpTool[] = [
   {
+    name: "get_zones",
+    description:
+      "Get supply/demand zones for a symbol. When no timeframe is given, returns zones grouped by timeframe (e.g. {\"1d\": [...], \"60m\": [...]}). When a timeframe is specified, returns a flat list filtered to that timeframe.",
+    params: [
+      { name: "symbol", type: "string", required: true, description: "Stock ticker symbol, e.g. AAPL." },
+      { name: "timeframe", type: "string", required: false, description: "Filter to a specific timeframe, e.g. 1d, 60m, 15m. Omit for grouped response." },
+    ],
+    returns: "Grouped Record<timeframe, Zone[]> when no timeframe given; Zone[] array when timeframe specified.",
+    hints: { readOnly: true, destructive: false },
+  },
+  {
     name: "monitor_symbol",
     description:
       "Start monitoring a symbol for supply/demand zones and live price action. Detects zones across 1d/60m/15m timeframes, schedules periodic refresh, and subscribes to the price stream. Call this before any zone queries on a new symbol.",

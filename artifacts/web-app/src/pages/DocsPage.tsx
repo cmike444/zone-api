@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Download, ChevronDown, ChevronRight, Lock, Zap, Globe, Play } from "lucide-react";
+import { Download, ChevronDown, ChevronRight, Lock, Zap, Globe, Play, Copy, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   type HttpMethod,
@@ -549,6 +549,81 @@ function WsSection({ stream }: { stream: WsStream }) {
   );
 }
 
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+
+  function handleCopy() {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  return (
+    <button
+      onClick={handleCopy}
+      className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-accent hover:bg-accent/80 text-foreground border border-border transition-colors shrink-0"
+      title="Copy to clipboard"
+    >
+      {copied ? <Check className="h-3 w-3 text-green-400" /> : <Copy className="h-3 w-3" />}
+      {copied ? "Copied" : "Copy"}
+    </button>
+  );
+}
+
+function McpIntegrationSection() {
+  const mcpUrl = `${window.location.origin}/api/mcp`;
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">
+        The MCP server uses the{" "}
+        <span className="text-foreground font-medium">Streamable HTTP</span> transport. Connect with any MCP-compatible
+        AI agent or client (Claude Desktop, Cursor, etc.) using the URL below. Requires{" "}
+        <code className="font-mono bg-accent/50 px-1 py-0.5 rounded text-xs">Authorization: Bearer &lt;token&gt;</code>.
+      </p>
+
+      {/* URL row with copy button */}
+      <div className="flex items-center gap-2 bg-background border border-border rounded-lg px-3 py-2">
+        <span className="text-xs text-muted-foreground shrink-0">Server URL</span>
+        <code className="text-sm font-mono text-foreground flex-1 truncate">{mcpUrl}</code>
+        <CopyButton text={mcpUrl} />
+      </div>
+
+      {/* Transport explanation */}
+      <div className="rounded-lg border border-border overflow-hidden text-xs">
+        <div className="px-3 py-2 bg-card/80 border-b border-border font-semibold text-foreground">
+          How to connect
+        </div>
+        <div className="px-3 py-3 bg-card/30 space-y-2 text-muted-foreground">
+          <div className="flex gap-2">
+            <span className="bg-green-500/15 text-green-400 border border-green-500/30 px-1.5 py-0.5 rounded font-mono font-bold shrink-0">POST</span>
+            <div>
+              <code className="text-foreground/80">{mcpUrl}</code> — send an{" "}
+              <code>initialize</code> request (no <code>mcp-session-id</code> header) to start a session.
+              The response will include an <code>mcp-session-id</code> header to reuse for subsequent calls.
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <span className="bg-blue-500/15 text-blue-400 border border-blue-500/30 px-1.5 py-0.5 rounded font-mono font-bold shrink-0">GET</span>
+            <div>
+              <code className="text-foreground/80">{mcpUrl}</code> — open an SSE stream for server-sent
+              events. Pass the <code>mcp-session-id</code> header from the initialize response.
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <span className="bg-red-500/15 text-red-400 border border-red-500/30 px-1.5 py-0.5 rounded font-mono font-bold shrink-0">DELETE</span>
+            <div>
+              <code className="text-foreground/80">{mcpUrl}</code> — close and clean up a session.
+              Pass the <code>mcp-session-id</code> header.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function McpToolCard({ tool }: { tool: McpTool }) {
   const [open, setOpen] = useState(false);
 
@@ -723,12 +798,9 @@ export default function DocsPage() {
           <div className="flex items-center gap-3 border-b border-border pb-2">
             <h2 className="text-lg font-bold text-foreground">MCP Interface</h2>
           </div>
-          <p className="text-sm text-muted-foreground">
-            The Model Context Protocol server is accessible at{" "}
-            <code className="font-mono bg-accent/50 px-1 py-0.5 rounded text-xs">POST /api/mcp</code>. Requires{" "}
-            <code className="font-mono bg-accent/50 px-1 py-0.5 rounded text-xs">Authorization: Bearer &lt;token&gt;</code>.
-            Use an MCP-compatible AI agent or client to call the tools below.
-          </p>
+
+          <McpIntegrationSection />
+
           <div className="space-y-2">
             {MCP_TOOLS.map((tool) => (
               <McpToolCard key={tool.name} tool={tool} />

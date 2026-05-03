@@ -78,6 +78,22 @@ export const ROUTES = {
     ],
     exampleResponse: { ok: true, count: 12 },
   },
+  getBySymbolGrouped: {
+    method: "GET" as const,
+    routerPath: "/:symbol/timeframes",
+    fullPath: "/api/zones/:symbol/timeframes",
+    summary: "Get zones grouped by timeframe",
+    description:
+      "Returns all fresh zones for a symbol grouped by timeframe key. Only timeframes with at least one zone are included.",
+    auth: true,
+    params: [
+      { name: "symbol", in: "path" as const, required: true, type: "string", description: "Stock ticker, e.g. AAPL." },
+    ],
+    exampleResponse: {
+      "1d":  [{ id: 1, symbol: "AAPL", timeframe: "1d", direction: "supply", proximalLine: 191.0, distalLine: 193.5, confidence: 0.85, isFresh: true }],
+      "60m": [{ id: 2, symbol: "AAPL", timeframe: "60m", direction: "demand", proximalLine: 182.0, distalLine: 180.5, confidence: 0.78, isFresh: true }],
+    },
+  },
   getBySymbol: {
     method: "GET" as const,
     routerPath: "/:symbol",

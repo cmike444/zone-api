@@ -192,6 +192,24 @@ export function upsertZone(zone: Zone): number {
   return result.lastInsertRowid as number;
 }
 
+export function getZonesBySymbolGrouped(
+  symbol: string,
+): Record<string, Zone[]> {
+  const db = getDb();
+  const rows = db
+    .prepare(
+      "SELECT * FROM zones WHERE symbol = ? AND is_fresh = 1 ORDER BY confidence DESC",
+    )
+    .all(symbol) as ZoneRow[];
+  const result: Record<string, Zone[]> = {};
+  for (const row of rows) {
+    const zone = rowToZone(row);
+    if (!result[zone.timeframe]) result[zone.timeframe] = [];
+    result[zone.timeframe].push(zone);
+  }
+  return result;
+}
+
 export function getZonesBySymbol(
   symbol: string,
   timeframe?: string,
